@@ -487,6 +487,11 @@ button {
   margin-bottom: 20px;
 }
 
+.dashboard-hero .hero-copy {
+  width: 100%;
+  max-width: none;
+}
+
 .dashboard-metrics {
   margin-bottom: 20px;
 }
