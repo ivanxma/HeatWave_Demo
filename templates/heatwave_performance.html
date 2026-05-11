@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>HeatWave Performance</h2>
+  <p>Compare the same `airportdb` workload on InnoDB and the RAPID secondary engine.</p>
+</section>
+
+<section class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="HeatWave Performance tabs">
+    {% for tab in tabs %}
+    <a
+      href="{{ url_for('heatwave_performance_page', tab=tab.id) }}"
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      role="tab"
+      aria-selected="{% if tab.id == active_tab %}true{% else %}false{% endif %}"
+    >
+      {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+<section class="panel result-panel tab-panel">
+  <h3>{{ active_tab_label }}</h3>
+  <p class="helper-text">The page loads information only. The SQL below runs only when you click `Execute`.</p>
+  <p class="helper-text">Session autocommit: <strong>{{ autocommit_value if autocommit_value is not none else "-" }}</strong></p>
+  <form method="post" id="performance-execute-form">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <label>
+      SQL Statement
+      <textarea name="sql_text" rows="10">{{ sql_text }}</textarea>
+    </label>
+    <div class="inline-form">
+      <button class="button primary" type="submit">Execute</button>
+      <span class="status-pill" id="performance-run-status"></span>
+      {% if execution_timing %}
+      <span class="timing-pill">Execution time: {{ "%.4f"|format(execution_timing.elapsed_seconds) }} seconds</span>
+      {% endif %}
+    </div>
+  </form>
+  {% if execution_timing %}
+  <p class="helper-text">
+    Started: <strong>{{ execution_timing.started_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+    <br>
+    Finished: <strong>{{ execution_timing.finished_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+  </p>
+  {% endif %}
+</section>
+</section>
+
+<section class="split-layout performance-panels">
+  <article class="panel result-panel">
+    <h3>EXPLAIN</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {% for column in explain_plan.columns %}
+            <th>{{ column }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in explain_plan.rows %}
+          <tr>
+            {% for cell in row %}
+            <td>
+              {% if cell.is_multiline %}
+              <pre class="json-cell">{{ cell.value }}</pre>
+              {% else %}
+              {{ cell.value }}
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ explain_plan.columns|length if explain_plan.columns else 1 }}">No EXPLAIN output.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class="panel result-panel">
+    <h3>Table Row Counts</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Rows</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in table_counts %}
+          <tr>
+            <td>{{ row.table_name }}</td>
+            <td>{{ row.row_count }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="2">No table counts available.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+{% if query_executed %}
+<section class="panel result-panel">
+  <h3>Query Result</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          {% for column in result_table.columns %}
+          <th>{{ column }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in result_table.rows %}
+        <tr>
+          {% for value in row %}
+          <td>{{ value }}</td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="{{ result_table.columns|length if result_table.columns else 1 }}">No rows returned.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<script>
+  (() => {
+    const form = document.getElementById("performance-execute-form");
+    const status = document.getElementById("performance-run-status");
+    document.body.classList.remove("page-busy");
+    window.addEventListener("pageshow", () => {
+      document.body.classList.remove("page-busy");
+      if (status) {
+        status.textContent = "";
+        status.classList.remove("visible");
+      }
+    });
+    if (!form) {
+      return;
+    }
+    form.addEventListener("submit", () => {
+      document.body.classList.add("page-busy");
+      if (status) {
+        status.textContent = "Status : Running";
+        status.classList.add("visible");
+      }
+    });
+  })();
+</script>
+{% endblock %}

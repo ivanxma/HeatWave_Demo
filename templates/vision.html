@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>HWVision</h2>
+  <p>Upload an image and ask a supported generation model to describe or analyze it.</p>
+</section>
+
+<form method="post" enctype="multipart/form-data" class="split-layout">
+  <article class="panel">
+    <h3>Image Prompt</h3>
+    <label>
+      Upload image
+      <input type="file" name="image_file" accept=".jpg,.jpeg,.png">
+    </label>
+    <label>
+      Question about the image
+      <input type="text" name="question" value="{{ question }}">
+    </label>
+    <label>
+      Choose LLM
+      <select name="llm">
+        {% for model in llm_models %}
+        <option value="{{ model }}" {% if model == selected_model %}selected{% endif %}>{{ model }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button class="button primary" type="submit">Submit</button>
+    </div>
+  </article>
+
+  <article class="panel">
+    <h3>Preview</h3>
+    {% if preview_data_url %}
+    <img src="{{ preview_data_url }}" alt="Uploaded preview" class="preview-image">
+    {% else %}
+    <p>No image uploaded yet.</p>
+    {% endif %}
+  </article>
+</form>
+
+{% if answer %}
+<section class="panel result-panel">
+  <h3>Response</h3>
+  <textarea rows="10" readonly>{{ answer }}</textarea>
+</section>
+{% endif %}
+{% endblock %}

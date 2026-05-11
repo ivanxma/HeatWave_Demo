@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">Admin</p>
+  <h2>Import</h2>
+  <p>Load a CSV or Excel file, preview the rows, and import the data into the selected schema and table.</p>
+</section>
+
+<section class="panel-stack">
+  <article class="panel toolbar-panel">
+    <form method="get" class="inline-form auto-submit-form" id="import-selection-form">
+      <label class="inline-field">
+        Database
+        <select name="database" id="import-database-select">
+          <option value="">Choose a database</option>
+          {% for database in import_tree %}
+          <option value="{{ database.database_name }}" {% if database.database_name == selected_database %}selected{% endif %}>
+            {{ database.database_name }}{% if database.is_system %} (system){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="inline-field">
+        Table
+        <select name="table" id="import-table-select">
+          <option value="">Choose a table</option>
+          {% for table_name in available_tables %}
+          <option value="{{ table_name }}" {% if table_name == selected_table %}selected{% endif %}>
+            {{ table_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h3>Import File</h3>
+    {% if selected_database_is_system %}
+    <p class="helper-text">The selected database is protected. Choose a non-system database before importing.</p>
+    {% else %}
+    <form method="post" enctype="multipart/form-data" class="form-grid" id="import-file-form">
+      <input type="hidden" name="table" value="{{ selected_table }}">
+      <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
+
+      <label>
+        Database Name
+        <input name="database_name" type="text" value="{{ import_form.database_name }}" placeholder="example_db">
+      </label>
+
+      <label>
+        Import Table Name
+        <input
+          name="table_name"
+          id="import-target-table-name"
+          type="text"
+          value="{{ import_form.table_name }}"
+          placeholder="target_table"
+          data-selected-table="{{ selected_table }}"
+        >
+      </label>
+
+      <label>
+        Choose File
+        <input name="import_file" type="file" accept=".csv,.xlsx,.xlsm,.xltx,.xltm">
+      </label>
+
+      <label class="checkbox-row">
+        <input name="overwrite_existing" type="checkbox" {% if import_form.overwrite_existing %}checked{% endif %}>
+        <span>Overwrite existing table by truncating it before import</span>
+      </label>
+
+      <label class="checkbox-row">
+        <input name="create_new_table" type="checkbox" {% if import_form.create_new_table %}checked{% endif %}>
+        <span>Create a new table from the import file when the target table does not exist</span>
+      </label>
+
+      <label class="checkbox-row">
+        <input name="add_invisible_primary_key" type="checkbox" {% if import_form.add_invisible_primary_key %}checked{% endif %}>
+        <span>Create invisible column <code>my_row_id</code> as the primary key when creating a new table</span>
+      </label>
+
+      {% if existing_target %}
+      <p class="helper-text">Target table <code>{{ import_form.database_name }}.{{ import_form.table_name }}</code> already exists.</p>
+      {% endif %}
+    </form>
+    {% endif %}
+  </article>
+
+  {% if import_preview %}
+  <article class="panel">
+    <h3>Preview</h3>
+    <p class="helper-text">
+      Showing {{ import_preview.preview_count }} of {{ import_preview.row_count }} rows from <code>{{ import_preview.filename }}</code>.
+    </p>
+    <div class="form-actions import-preview-actions">
+      <button class="button primary" type="submit" form="import-file-form" name="import_action" value="load_preview">Load Preview</button>
+      <form
+        method="post"
+        {% if existing_target and not import_form.create_new_table %}
+        onsubmit="return confirm('Import into existing table {{ import_form.database_name }}.{{ import_form.table_name }}?');"
+        {% endif %}
+      >
+        <input type="hidden" name="database_name" value="{{ import_form.database_name }}">
+        <input type="hidden" name="table" value="{{ selected_table }}">
+        <input type="hidden" name="table_name" value="{{ import_form.table_name }}">
+        <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
+        {% if import_form.overwrite_existing %}
+        <input type="hidden" name="overwrite_existing" value="on">
+        {% endif %}
+        {% if import_form.create_new_table %}
+        <input type="hidden" name="create_new_table" value="on">
+        {% endif %}
+        {% if import_form.add_invisible_primary_key %}
+        <input type="hidden" name="add_invisible_primary_key" value="on">
+        {% endif %}
+        <button class="button primary" type="submit" name="import_action" value="import_file">Import</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table class="admin-table import-preview-table">
+        <thead>
+          <tr>
+            {% for column in import_preview.columns %}
+            <th>{{ column }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in import_preview.rows %}
+          <tr>
+            {% for value in row %}
+            <td class="import-preview-cell">
+              <button
+                class="report-cell-button import-preview-button"
+                type="button"
+                data-report-value="{{ value if value is not none else '' }}"
+                data-report-column="{{ import_preview.columns[loop.index0] }}"
+              >
+                {{ value if value is not none and value != '' else "-" }}
+              </button>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+  {% endif %}
+</section>
+
+<div class="modal-overlay" id="import-preview-value-modal" hidden>
+  <section class="modal-card report-value-modal-card">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Cell Value</p>
+        <h3 id="import-preview-value-title">Value</h3>
+      </div>
+      <button class="button secondary" type="button" id="import-preview-value-close">Close</button>
+    </div>
+    <pre class="report-value-content" id="import-preview-value-content"></pre>
+  </section>
+</div>
+
+<script>
+  (() => {
+    const selectionForm = document.getElementById("import-selection-form");
+    const databaseSelect = document.getElementById("import-database-select");
+    const tableSelect = document.getElementById("import-table-select");
+    const targetTableInput = document.getElementById("import-target-table-name");
+    if (!selectionForm || !databaseSelect || !tableSelect) {
+      return;
+    }
+
+    databaseSelect.addEventListener("change", () => {
+      tableSelect.value = "";
+      selectionForm.submit();
+    });
+
+    tableSelect.addEventListener("change", () => {
+      if (
+        targetTableInput &&
+        (!targetTableInput.value.trim() || targetTableInput.value.trim() === targetTableInput.dataset.selectedTable)
+      ) {
+        targetTableInput.value = tableSelect.value;
+      }
+      selectionForm.submit();
+    });
+
+    if (targetTableInput) {
+      targetTableInput.dataset.selectedTable = targetTableInput.dataset.selectedTable || "";
+    }
+  })();
+
+  (() => {
+    const modal = document.getElementById("import-preview-value-modal");
+    const modalTitle = document.getElementById("import-preview-value-title");
+    const modalContent = document.getElementById("import-preview-value-content");
+    const closeButton = document.getElementById("import-preview-value-close");
+    if (!modal || !modalTitle || !modalContent || !closeButton) {
+      return;
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+    }
+
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest(".import-preview-button");
+      if (!button) {
+        if (event.target === modal) {
+          closeModal();
+        }
+        return;
+      }
+
+      modalTitle.textContent = button.dataset.reportColumn || "Value";
+      modalContent.textContent = button.dataset.reportValue || "";
+      modal.hidden = false;
+    });
+
+    closeButton.addEventListener("click", closeModal);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) {
+        closeModal();
+      }
+    });
+  })();
+</script>
+{% endblock %}

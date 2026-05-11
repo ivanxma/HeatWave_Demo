@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>HWnlsql</h2>
+  <p>Run natural-language SQL against the schemas enabled in `nlsql.configdb`.</p>
+  <a class="doc-link" href="{{ docs_url }}" target="_blank" rel="noreferrer">Open NL_SQL documentation</a>
+</section>
+
+<form method="post" class="split-layout" id="nlsql-form">
+  <article class="panel">
+    <h3>Prompt</h3>
+    <label>
+      Question
+      <textarea name="question" rows="6">{{ question }}</textarea>
+    </label>
+    <label>
+      Choose LLM
+      <select name="llm">
+        {% for model in llm_models %}
+        <option value="{{ model }}" {% if model == selected_model %}selected{% endif %}>{{ model }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="form-actions">
+      <button class="button primary" type="submit" id="nlsql-submit-button">Submit</button>
+    </div>
+  </article>
+
+  <article class="panel">
+    <h3>Enabled Schemas</h3>
+    <div class="checkbox-grid">
+      {% for database in available_databases %}
+      <label class="checkbox-row">
+        <input type="checkbox" name="databases" value="{{ database }}" {% if database in selected_databases %}checked{% endif %}>
+        <span>{{ database }}</span>
+      </label>
+      {% else %}
+      <p>No schemas are enabled. Use Setup configdb first.</p>
+      {% endfor %}
+    </div>
+  </article>
+</form>
+
+{% if proc_call_text or sql_text or table_names or result_tables %}
+<section class="panel result-panel">
+  <h3>Output</h3>
+  <div class="tab-strip result-tab-strip" role="tablist" aria-label="NL_SQL output tabs">
+    {% if proc_call_text %}
+    <button class="tab-link result-tab-link active" type="button" data-result-group="nlsql-output" data-result-tab="call" aria-selected="true">CALL</button>
+    {% endif %}
+    {% if sql_text %}
+    <button class="tab-link result-tab-link {% if not proc_call_text %}active{% endif %}" type="button" data-result-group="nlsql-output" data-result-tab="sql" aria-selected="{{ 'false' if proc_call_text else 'true' }}">Generated SQL</button>
+    {% endif %}
+    {% if table_names %}
+    <button class="tab-link result-tab-link {% if not proc_call_text and not sql_text %}active{% endif %}" type="button" data-result-group="nlsql-output" data-result-tab="tables" aria-selected="{{ 'true' if not proc_call_text and not sql_text else 'false' }}">Referenced Tables</button>
+    {% endif %}
+    {% for table in result_tables %}
+    <button class="tab-link result-tab-link {% if not proc_call_text and not sql_text and not table_names and loop.first %}active{% endif %}" type="button" data-result-group="nlsql-output" data-result-tab="result-{{ loop.index0 }}" aria-selected="{{ 'true' if not proc_call_text and not sql_text and not table_names and loop.first else 'false' }}">Result {{ loop.index }}</button>
+    {% endfor %}
+  </div>
+
+  {% if proc_call_text %}
+  <section class="result-tab-panel" data-result-group-panel="nlsql-output" data-result-panel="call">
+    <textarea rows="8" readonly>{{ proc_call_text }}</textarea>
+  </section>
+  {% endif %}
+  {% if sql_text %}
+  <section class="result-tab-panel" data-result-group-panel="nlsql-output" data-result-panel="sql" {% if proc_call_text %}hidden{% endif %}>
+    <textarea rows="8" readonly>{{ sql_text }}</textarea>
+  </section>
+  {% endif %}
+  {% if table_names %}
+  <section class="result-tab-panel" data-result-group-panel="nlsql-output" data-result-panel="tables" {% if proc_call_text or sql_text %}hidden{% endif %}>
+    <textarea rows="4" readonly>{{ table_names }}</textarea>
+  </section>
+  {% endif %}
+  {% for table in result_tables %}
+  <section class="result-tab-panel" data-result-group-panel="nlsql-output" data-result-panel="result-{{ loop.index0 }}" {% if proc_call_text or sql_text or table_names or not loop.first %}hidden{% endif %}>
+    <div class="table-wrap">
+      <table class="admin-table report-table">
+        <thead>
+          <tr>
+            {% for column in table.columns %}
+            <th>{{ column }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in table.rows %}
+          <tr>
+            {% for value in row %}
+            <td>{{ value }}</td>
+            {% endfor %}
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ table.columns|length if table.columns else 1 }}">No rows returned.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+</section>
+{% endif %}
+
+<script>
+  (() => {
+    const form = document.getElementById("nlsql-form");
+    const submitButton = document.getElementById("nlsql-submit-button");
+    document.body.classList.remove("page-busy");
+    window.addEventListener("pageshow", () => {
+      document.body.classList.remove("page-busy");
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+    });
+    if (!form || !submitButton) {
+      return;
+    }
+    form.addEventListener("submit", () => {
+      submitButton.disabled = true;
+      document.body.classList.add("page-busy");
+    });
+  })();
+
+  (() => {
+    const resultTabButtons = Array.from(document.querySelectorAll("[data-result-group][data-result-tab]"));
+    const resultTabPanels = Array.from(document.querySelectorAll("[data-result-group-panel][data-result-panel]"));
+    if (!resultTabButtons.length || !resultTabPanels.length) {
+      return;
+    }
+    const activateResultTab = (groupName, tabId) => {
+      resultTabButtons.forEach((button) => {
+        const isActive = button.dataset.resultGroup === groupName && button.dataset.resultTab === tabId;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      resultTabPanels.forEach((panel) => {
+        panel.hidden = !(panel.dataset.resultGroupPanel === groupName && panel.dataset.resultPanel === tabId);
+      });
+    };
+    resultTabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activateResultTab(button.dataset.resultGroup, button.dataset.resultTab);
+      });
+    });
+  })();
+</script>
+{% endblock %}

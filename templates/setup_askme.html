@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">Admin</p>
+  <h2>Setup ObjectStorage</h2>
+</section>
+
+<div class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="Object Storage setup tabs">
+    {% for tab in setup_tabs %}
+    <button
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      type="button"
+      role="tab"
+      aria-selected="{{ 'true' if tab.id == active_tab else 'false' }}"
+      data-setup-tab="{{ tab.id }}"
+    >
+      {{ tab.label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <section class="panel tab-panel" role="tabpanel" data-setup-panel="oci-config" {% if active_tab != "oci-config" %}hidden{% endif %}>
+    <div class="panel-header-row">
+      <div>
+        <h3>OCI Config</h3>
+      </div>
+      <form method="post">
+        <input type="hidden" name="active_tab" value="oci-config">
+        <button class="button secondary" type="submit" name="setup_action" value="test_oci_config">Test OCI Config</button>
+      </form>
+    </div>
+
+    <dl class="detail-list detail-list-inline">
+      <div>
+        <dt>Config File</dt>
+        <dd>{{ oci_config.config_file }}</dd>
+      </div>
+      <div>
+        <dt>Profile</dt>
+        <dd>{{ oci_config.config_profile }}</dd>
+      </div>
+      <div>
+        <dt>Readable</dt>
+        <dd>{{ "Yes" if oci_config.exists else "No" }}</dd>
+      </div>
+    </dl>
+
+    <div class="oci-config-layout modal-section">
+      <aside class="option-group oci-config-mode-panel">
+        <h4>Config Source</h4>
+        <label class="checkbox-field">
+          <input type="radio" name="oci_config_mode" value="existing" data-oci-config-mode {% if oci_config_mode != "local" %}checked{% endif %}>
+          <span>Define config file</span>
+        </label>
+        <label class="checkbox-field">
+          <input type="radio" name="oci_config_mode" value="local" data-oci-config-mode {% if oci_config_mode == "local" %}checked{% endif %}>
+          <span>Store in local folder</span>
+        </label>
+      </aside>
+
+      <article class="setup-subpanel oci-config-form-panel" data-oci-config-section="existing">
+        <h3>Existing Config</h3>
+        <form method="post" class="form-grid">
+          <input type="hidden" name="active_tab" value="oci-config">
+          <input type="hidden" name="oci_config_mode" value="existing">
+          <label>
+            Config file
+            <input type="text" name="existing_config_file" value="{{ config_values.get('OCI_CONFIG_FILE', '~/.oci/config') or '~/.oci/config' }}">
+          </label>
+          <label>
+            Profile
+            <input type="text" name="existing_config_profile" value="{{ config_values.get('OCI_CONFIG_PROFILE', 'DEFAULT') or 'DEFAULT' }}">
+          </label>
+          <label>
+            Region
+            <input type="text" name="existing_region" value="{{ config_values.get('OCI_REGION', '') }}">
+          </label>
+          <div class="form-actions">
+            <button class="button primary" type="submit" name="setup_action" value="use_existing_oci_config">Use Existing Config</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="setup-subpanel oci-config-form-panel" data-oci-config-section="local">
+        <h3>Stored Local Config</h3>
+        <form method="post" enctype="multipart/form-data" class="form-grid">
+          <input type="hidden" name="active_tab" value="oci-config">
+          <input type="hidden" name="oci_config_mode" value="local">
+          <div class="field-row field-row-two">
+            <label>
+              Profile
+              <input type="text" name="local_config_profile" value="{{ config_values.get('OCI_CONFIG_PROFILE', 'DEFAULT') or 'DEFAULT' }}">
+            </label>
+            <label>
+              Region
+              <input type="text" name="local_region" value="{{ config_values.get('OCI_REGION', '') }}">
+            </label>
+          </div>
+          <label>
+            Tenancy OCID
+            <input type="text" name="tenancy_id" placeholder="ocid1.tenancy.oc1..">
+          </label>
+          <label>
+            User OCID
+            <input type="text" name="user_id" placeholder="ocid1.user.oc1..">
+          </label>
+          <label>
+            Fingerprint
+            <input type="text" name="fingerprint" placeholder="00:00:00:...">
+          </label>
+          <label>
+            Private key
+            <input type="file" name="private_key_file">
+          </label>
+          <div class="form-actions">
+            <button class="button primary" type="submit" name="setup_action" value="store_local_oci_config">Store Local Config</button>
+          </div>
+        </form>
+      </article>
+    </div>
+  </section>
+
+  <section class="panel tab-panel" role="tabpanel" data-setup-panel="bucket" {% if active_tab != "bucket" %}hidden{% endif %}>
+    <h3>Bucket Settings</h3>
+    <dl class="detail-list detail-list-inline">
+      <div>
+        <dt>Bucket</dt>
+        <dd>{{ bucket_settings.bucket_name or "-" }}</dd>
+      </div>
+      <div>
+        <dt>Namespace</dt>
+        <dd>{{ bucket_settings.namespace_name or "-" }}</dd>
+      </div>
+      <div>
+        <dt>Base Folder</dt>
+        <dd>{{ bucket_settings.base_folder or "-" }}</dd>
+      </div>
+    </dl>
+
+    <form method="post" class="form-grid modal-section">
+      <input type="hidden" name="active_tab" value="bucket">
+      <input type="hidden" name="OCI_CONFIG_FILE" value="{{ config_values.get('OCI_CONFIG_FILE', '') }}">
+      <input type="hidden" name="OCI_CONFIG_PROFILE" value="{{ config_values.get('OCI_CONFIG_PROFILE', '') }}">
+      <div class="field-grid">
+        <label>
+          OCI_REGION
+          <input type="text" name="OCI_REGION" value="{{ config_values.get('OCI_REGION', '') }}">
+        </label>
+        <label>
+          OCI_BUCKET_NAME
+          <input type="text" name="OCI_BUCKET_NAME" value="{{ config_values.get('OCI_BUCKET_NAME', '') }}">
+        </label>
+        <label>
+          OCI_NAMESPACE
+          <input type="text" name="OCI_NAMESPACE" value="{{ config_values.get('OCI_NAMESPACE', '') }}">
+        </label>
+        <label>
+          OCI_BUCKET_FOLDER
+          <input type="text" name="OCI_BUCKET_FOLDER" value="{{ config_values.get('OCI_BUCKET_FOLDER', '') }}">
+        </label>
+      </div>
+      <div class="form-actions">
+        <button class="button primary" type="submit" name="setup_action" value="save_config">Save Bucket Settings</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel tab-panel" role="tabpanel" data-setup-panel="upload" {% if active_tab != "upload" %}hidden{% endif %}>
+    <h3>Bucket File Upload</h3>
+    <form method="post" enctype="multipart/form-data" class="form-grid">
+      <input type="hidden" name="active_tab" value="upload">
+      <div class="field-row field-row-two">
+        <div class="folder-picker-field">
+          <label>
+            Folder
+            <select name="upload_folder_name">
+              <option value="" {% if not selected_upload_folder %}selected{% endif %}>Root</option>
+              {% for folder in folder_options %}
+              <option value="{{ folder.name }}" {% if folder.name == selected_upload_folder %}selected{% endif %}>{{ folder.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="button secondary folder-populate-button" type="submit" name="setup_action" value="populate_upload_folders">Populate</button>
+        </div>
+        <label>
+          File
+          <input type="file" name="bucket_file">
+        </label>
+      </div>
+      <div class="field-row field-row-two">
+        <label>
+          New Folder
+          <input type="text" name="new_upload_folder_name" placeholder="folder/subfolder">
+        </label>
+        <div class="field-actions-inline">
+          <button class="button secondary" type="submit" name="setup_action" value="create_upload_folder">Create Folder</button>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="button primary" type="submit" name="setup_action" value="upload_object">Upload File</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel tab-panel" role="tabpanel" data-setup-panel="preauth" {% if active_tab != "preauth" %}hidden{% endif %}>
+    <h3>Pre-Authenticated URLs</h3>
+
+    {% if last_par_url %}
+    <div class="flash success">
+      <strong>New URL:</strong>
+      <code>{{ last_par_url }}</code>
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-grid">
+      <input type="hidden" name="active_tab" value="preauth">
+      <div class="field-row field-row-two">
+        <label>
+          Name
+          <input type="text" name="par_name" value="heatwave-demo-par">
+        </label>
+        <label>
+          Target Type
+          <input type="text" value="Objects with Prefix" readonly>
+        </label>
+      </div>
+      <div class="field-row field-row-two">
+        <label>
+          Access Type
+          <select name="par_access_type">
+            {% for access_type in par_access_types %}
+            <option value="{{ access_type }}">{{ access_type }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <div class="folder-picker-field">
+          <label>
+            Folder
+            <select name="par_folder_name">
+              <option value="" {% if not selected_par_folder %}selected{% endif %}>Root</option>
+              {% for folder in folder_options %}
+              <option value="{{ folder.name }}" {% if folder.name == selected_par_folder %}selected{% endif %}>{{ folder.label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <button class="button secondary folder-populate-button" type="submit" name="setup_action" value="populate_par_folders">Populate</button>
+        </div>
+      </div>
+      <div class="field-row field-row-two">
+        <label>
+          Object Prefix
+          <input type="text" name="par_object_prefix" placeholder="optional-prefix">
+        </label>
+        <label>
+          Expires At UTC
+          <input type="datetime-local" name="par_expires_at" value="{{ default_par_expires_at }}">
+        </label>
+      </div>
+      <div class="field-row field-row-two">
+        <label class="checkbox-field field-checkbox-cell">
+          <input type="checkbox" name="par_enable_listing" value="1">
+          <span>Enable object listing</span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button class="button primary" type="submit" name="setup_action" value="create_par">Create URL</button>
+      </div>
+    </form>
+
+    <div class="modal-section">
+      <h4>Existing Pre-Authenticated Requests</h4>
+      {% if par_error %}
+      <div class="flash warning">{{ par_error }}</div>
+      {% endif %}
+      <div class="table-wrap">
+        <table class="admin-table report-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Access Type</th>
+              <th>Object</th>
+              <th>Listing</th>
+              <th>Created</th>
+              <th>Expires</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in par_rows %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td>{{ row.access_type }}</td>
+              <td>{{ row.object_name or "-" }}</td>
+              <td>{{ row.bucket_listing_action or "-" }}</td>
+              <td>{{ row.time_created or "-" }}</td>
+              <td>{{ row.time_expires or "-" }}</td>
+              <td class="table-action-cell">
+                <form method="post" onsubmit="return confirm('Delete this pre-authenticated request?');">
+                  <input type="hidden" name="active_tab" value="preauth">
+                  <input type="hidden" name="par_id" value="{{ row.id }}">
+                  <button class="button secondary danger" type="submit" name="setup_action" value="delete_par">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="7">No pre-authenticated requests found.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (() => {
+    const tabs = Array.from(document.querySelectorAll("[data-setup-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-setup-panel]"));
+    if (!tabs.length || !panels.length) {
+      return;
+    }
+    const activate = (tabId) => {
+      tabs.forEach((tab) => {
+        const isActive = tab.dataset.setupTab === tabId;
+        tab.classList.toggle("active", isActive);
+        tab.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.setupPanel !== tabId;
+      });
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tabId);
+      window.history.replaceState({}, "", url.toString());
+    };
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => activate(tab.dataset.setupTab));
+    });
+  })();
+
+  (() => {
+    const radios = Array.from(document.querySelectorAll("[data-oci-config-mode]"));
+    const sections = Array.from(document.querySelectorAll("[data-oci-config-section]"));
+    if (!radios.length || !sections.length) {
+      return;
+    }
+    const applyMode = () => {
+      const active = radios.find((radio) => radio.checked)?.value || "existing";
+      sections.forEach((section) => {
+        section.hidden = section.dataset.ociConfigSection !== active;
+      });
+    };
+    radios.forEach((radio) => radio.addEventListener("change", applyMode));
+    applyMode();
+  })();
+</script>
+{% endblock %}

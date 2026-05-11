@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hw-nlsql-secret
+  namespace: nlsql
+type: Opaque
+stringData:
+  FLASK_SECRET_KEY: change-this-secret-key
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hw-nlsql-bootstrap
+  namespace: nlsql
+data:
+  start.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y git ca-certificates python3 python3-venv python3-full openssl
+
+    mkdir -p /workspace
+
+    if [[ ! -d /workspace/HW-NLSQL-py/.git ]]; then
+      git clone https://github.com/ivanxma/HW-NLSQL-py /workspace/HW-NLSQL-py
+    else
+      git -C /workspace/HW-NLSQL-py pull --ff-only
+    fi
+
+    cd /workspace/HW-NLSQL-py
+    export APP_ADDRESS=0.0.0.0
+    export APP_PORT=8443
+    export APP_SSL_CN=hw-nlsql
+    export APP_SKIP_SUDO_REEXEC=1
+    export APP_PYTHON_BIN=/workspace/HW-NLSQL-py/.venv/bin/python
+    export PATH=/workspace/HW-NLSQL-py/.venv/bin:${PATH}
+    unset PYTHONHOME
+    unset PYTHONPATH
+
+    python3 -m venv /workspace/HW-NLSQL-py/.venv
+    /workspace/HW-NLSQL-py/.venv/bin/python -m pip install --upgrade pip setuptools wheel
+    /workspace/HW-NLSQL-py/.venv/bin/python -m pip install -r /workspace/HW-NLSQL-py/requirements.txt
+    /workspace/HW-NLSQL-py/.venv/bin/python -c "import sys, mysql.connector; print('Verified mysql.connector with', sys.executable)"
+    exec /bin/bash ./start_https.sh
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hw-nlsql
+  namespace: nlsql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hw-nlsql
+  template:
+    metadata:
+      labels:
+        app: hw-nlsql
+    spec:
+      containers:
+        - name: hw-nlsql
+          image: ubuntu:24.04
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/opt/bootstrap/start.sh"]
+          ports:
+            - name: https
+              containerPort: 8443
+          env:
+            - name: FLASK_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hw-nlsql-secret
+                  key: FLASK_SECRET_KEY
+          readinessProbe:
+            tcpSocket:
+              port: https
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: https
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /opt/bootstrap
+            - name: workspace
+              mountPath: /workspace
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: hw-nlsql-bootstrap
+            defaultMode: 0755
+        - name: workspace
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hw-nlsql
+  namespace: nlsql
+spec:
+  selector:
+    app: hw-nlsql
+  # Uncomment and set this if your Kubernetes/cloud provider supports
+  # reserving a specific public IP for a LoadBalancer service.
+  # loadBalancerIP: 203.0.113.10
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: https
+      port: 443
+      targetPort: https
+      protocol: TCP
+  type: LoadBalancer

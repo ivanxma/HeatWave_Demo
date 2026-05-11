@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>GenAI</h2>
+  <p>Create a vector knowledge base from URL content, then search it with OCI embeddings and an LLM answer flow.</p>
+</section>
+
+<section class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="GenAI tabs">
+    {% for tab in tabs %}
+    <a
+      href="{{ url_for('heatwave_genai_page', tab=tab.id, schema_name=schema_name, table_name=table_name, create_new_db='1' if create_new_db else '0', embed_model_id=embed_model_id, generate_model_id=generate_model_id, source_url=source_url, search_query=search_query, search_limit=search_limit) }}"
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      role="tab"
+      aria-selected="{% if tab.id == active_tab %}true{% else %}false{% endif %}"
+    >
+      {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if active_tab == "create-kb" %}
+  <form method="post" class="split-layout">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <input type="hidden" name="genai_action" value="create_kb">
+    <article class="panel">
+      <h3>Create KB</h3>
+      <div class="field-row-two">
+        <label>
+          Target Schema
+          <select id="genai-create-schema-select" {% if create_new_db %}hidden disabled{% else %}name="schema_name"{% endif %}>
+            {% for item in available_schemas %}
+            <option value="{{ item }}" {% if item == schema_name %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </select>
+          <input
+            id="genai-create-schema-input"
+            type="text"
+            list="genai-schema-options"
+            value="{{ schema_name }}"
+            {% if create_new_db %}name="schema_name"{% else %}hidden disabled{% endif %}
+          >
+        </label>
+        <label class="checkbox-field">
+          <span>New DB</span>
+          <input id="genai-create-new-db" type="checkbox" name="create_new_db" value="1" {% if create_new_db %}checked{% endif %}>
+        </label>
+        <label>
+          Vector Table
+          <input type="text" name="table_name" value="{{ table_name }}">
+        </label>
+      </div>
+      <label>
+        Choose Embedding
+        <select name="embed_model_id">
+          {% for model_id in embedding_models %}
+          <option value="{{ model_id }}" {% if model_id == embed_model_id %}selected{% endif %}>{{ model_id }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="full-width-field">
+        Source URL
+        <textarea name="source_url" rows="5">{{ source_url }}</textarea>
+      </label>
+      <p class="helper-text">The page fetches the URL, extracts text blocks, creates embeddings in batches, and stores them in <code>{{ schema_name or "schema" }}.{{ table_name }}</code>.</p>
+      <div class="form-actions">
+        <button class="button primary" type="submit">Create KB</button>
+      </div>
+    </article>
+
+    <article class="panel result-panel">
+      <h3>Result</h3>
+      {% if create_result %}
+      <dl class="detail-list">
+        <div>
+          <dt>Source URL</dt>
+          <dd>{{ create_result.source_url }}</dd>
+        </div>
+        <div>
+          <dt>Extracted Chunks</dt>
+          <dd>{{ create_result.chunk_count }}</dd>
+        </div>
+        <div>
+          <dt>Inserted Rows</dt>
+          <dd>{{ create_result.inserted_count }}</dd>
+        </div>
+        <div>
+          <dt>Embedding Model</dt>
+          <dd>{{ create_result.embed_model_id }}</dd>
+        </div>
+      </dl>
+      {% else %}
+      <p class="helper-text">Run <code>Create KB</code> to fetch, chunk, embed, and store URL content.</p>
+      {% endif %}
+
+      {% if create_summary.columns %}
+      <section class="panel modal-section">
+        <h4>Stored Sources</h4>
+        <div class="table-wrap">
+          <table class="admin-table report-table">
+            <thead>
+              <tr>
+                {% for column in create_summary.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in create_summary.rows %}
+              <tr>
+                {% for value in row %}
+                <td>{{ value if value is not none and value != '' else "-" }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if create_chunks_preview.columns %}
+      <section class="panel modal-section">
+        <h4>Chunk Preview</h4>
+        <div class="table-wrap">
+          <table class="admin-table report-table">
+            <thead>
+              <tr>
+                {% for column in create_chunks_preview.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in create_chunks_preview.rows %}
+              <tr>
+                {% for value in row %}
+                <td>
+                  <button
+                    class="report-cell-button"
+                    type="button"
+                    data-report-value="{{ value if value is not none else '' }}"
+                    data-report-column="{{ create_chunks_preview.columns[loop.index0] }}"
+                  >
+                    {{ value if value is not none and value != '' else "-" }}
+                  </button>
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+    </article>
+  </form>
+  {% else %}
+  <form method="post" class="panel-stack">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <input type="hidden" name="genai_action" value="search_kb">
+    <article class="panel">
+      <h3>Search KB</h3>
+      <div class="field-row-two">
+        <label>
+          Embed Model
+          <select name="embed_model_id">
+            {% for model_id in embedding_models %}
+            <option value="{{ model_id }}" {% if model_id == embed_model_id %}selected{% endif %}>{{ model_id }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Generate Model
+          <select name="generate_model_id">
+            {% for model_id in generation_models %}
+            <option value="{{ model_id }}" {% if model_id == generate_model_id %}selected{% endif %}>{{ model_id }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="field-row-two">
+        <label>
+          Target Schema
+          <select id="genai-search-schema-select" name="schema_name">
+            {% for item in available_schemas %}
+            <option
+              value="{{ item }}"
+              data-has-table="{% if item in schemas_with_table %}1{% else %}0{% endif %}"
+              {% if item == schema_name %}selected{% endif %}
+            >{{ item }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Vector Table
+          <input type="text" name="table_name" value="{{ table_name }}" readonly>
+        </label>
+      </div>
+      <div class="field-row-two">
+        <label>
+          Search Limit
+          <input type="number" name="search_limit" min="1" max="50" value="{{ search_limit }}">
+        </label>
+      </div>
+      <label class="full-width-field">
+        Question
+        <textarea name="search_query" rows="6">{{ search_query }}</textarea>
+      </label>
+      <p class="helper-text" id="genai-search-helper">
+        {% if search_table_exists %}
+        The search embeds the question, finds the closest KB rows, and sends the matched text to HeatWave generation.
+        {% else %}
+        The selected schema does not contain <code>{{ table_name }}</code>. Search is disabled until a schema with that table is selected.
+        {% endif %}
+      </p>
+      <div class="form-actions">
+        <button class="button primary" id="genai-search-button" type="submit" {% if not search_table_exists %}disabled{% endif %}>Search KB</button>
+      </div>
+    </article>
+
+    <article class="panel result-panel">
+      <h3>Answer</h3>
+      {% if search_answer %}
+      <div class="nl2ml-response-copy">{{ search_answer }}</div>
+      {% else %}
+      <p class="helper-text">Run <code>Search KB</code> to generate an answer and references from the vector table.</p>
+      {% endif %}
+
+      {% if search_documents.columns %}
+      <section class="panel modal-section">
+        <h4>Top Documents</h4>
+        <div class="table-wrap">
+          <table class="admin-table report-table">
+            <thead>
+              <tr>
+                {% for column in search_documents.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in search_documents.rows %}
+              <tr>
+                {% for value in row %}
+                <td>
+                  <button
+                    class="report-cell-button"
+                    type="button"
+                    data-report-value="{{ value if value is not none else '' }}"
+                    data-report-column="{{ search_documents.columns[loop.index0] }}"
+                  >
+                    {{ value if value is not none and value != '' else "-" }}
+                  </button>
+                </td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+    </article>
+  </form>
+  {% endif %}
+</section>
+
+<datalist id="genai-schema-options">
+  {% for item in available_schemas %}
+  <option value="{{ item }}"></option>
+  {% endfor %}
+</datalist>
+
+<div class="modal-overlay" id="genai-value-modal" hidden>
+  <section class="modal-card report-value-modal-card">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Cell Value</p>
+        <h3 id="genai-value-title">Value</h3>
+      </div>
+      <button class="button secondary" type="button" id="genai-value-close">Close</button>
+    </div>
+    <pre class="report-value-content" id="genai-value-content"></pre>
+  </section>
+</div>
+
+<script>
+  (() => {
+    const createNewDbCheckbox = document.getElementById("genai-create-new-db");
+    const createSchemaSelect = document.getElementById("genai-create-schema-select");
+    const createSchemaInput = document.getElementById("genai-create-schema-input");
+    const searchSchemaSelect = document.getElementById("genai-search-schema-select");
+    const searchButton = document.getElementById("genai-search-button");
+    const searchHelper = document.getElementById("genai-search-helper");
+
+    function syncCreateSchemaMode() {
+      if (!createNewDbCheckbox || !createSchemaSelect || !createSchemaInput) {
+        return;
+      }
+
+      if (createNewDbCheckbox.checked) {
+        createSchemaInput.value = createSchemaInput.value || createSchemaSelect.value || "";
+        createSchemaSelect.hidden = true;
+        createSchemaSelect.disabled = true;
+        createSchemaSelect.removeAttribute("name");
+        createSchemaInput.hidden = false;
+        createSchemaInput.disabled = false;
+        createSchemaInput.setAttribute("name", "schema_name");
+      } else {
+        createSchemaSelect.value = createSchemaInput.value || createSchemaSelect.value || "";
+        createSchemaInput.hidden = true;
+        createSchemaInput.disabled = true;
+        createSchemaInput.removeAttribute("name");
+        createSchemaSelect.hidden = false;
+        createSchemaSelect.disabled = false;
+        createSchemaSelect.setAttribute("name", "schema_name");
+      }
+    }
+
+    if (createNewDbCheckbox && createSchemaSelect && createSchemaInput) {
+      createNewDbCheckbox.addEventListener("change", syncCreateSchemaMode);
+      createSchemaSelect.addEventListener("change", () => {
+        createSchemaInput.value = createSchemaSelect.value || "";
+      });
+      syncCreateSchemaMode();
+    }
+
+    function syncSearchButtonState() {
+      if (!searchSchemaSelect || !searchButton || !searchHelper) {
+        return;
+      }
+      const selectedOption = searchSchemaSelect.options[searchSchemaSelect.selectedIndex];
+      const hasTable = !!selectedOption && selectedOption.dataset.hasTable === "1";
+      searchButton.disabled = !hasTable;
+      if (hasTable) {
+        searchHelper.innerHTML = "The search embeds the question, finds the closest KB rows, and sends the matched text to HeatWave generation.";
+      } else {
+        searchHelper.innerHTML = "The selected schema does not contain <code>{{ table_name }}</code>. Search is disabled until a schema with that table is selected.";
+      }
+    }
+
+    if (searchSchemaSelect && searchButton && searchHelper) {
+      searchSchemaSelect.addEventListener("change", syncSearchButtonState);
+      syncSearchButtonState();
+    }
+
+    const modal = document.getElementById("genai-value-modal");
+    const modalTitle = document.getElementById("genai-value-title");
+    const modalContent = document.getElementById("genai-value-content");
+    const closeButton = document.getElementById("genai-value-close");
+    if (!modal || !modalTitle || !modalContent || !closeButton) {
+      return;
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+    }
+
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest(".report-cell-button");
+      if (!button) {
+        if (event.target === modal) {
+          closeModal();
+        }
+        return;
+      }
+
+      modalTitle.textContent = button.dataset.reportColumn || "Value";
+      modalContent.textContent = button.dataset.reportValue || "";
+      modal.hidden = false;
+    });
+
+    closeButton.addEventListener("click", closeModal);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) {
+        closeModal();
+      }
+    });
+  })();
+</script>
+{% endblock %}

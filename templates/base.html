@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title or app_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <div class="page-shell">
+      {% if logged_in %}
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">MySQL HeatWave</p>
+          <h1><a href="{{ url_for('home') }}" class="topbar-home-link">{{ app_title }}</a></h1>
+        </div>
+        <div class="topbar-meta">
+          <div>
+            <span class="meta-label">User</span>
+            <strong>{{ current_user or "-" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Profile</span>
+            <strong>{{ current_profile_name or "-" }}</strong>
+          </div>
+          <div>
+            <span class="meta-label">Connection</span>
+            <strong>{{ connection_summary }}</strong>
+          </div>
+          <button class="topbar-timeout-block" type="button" id="connection-timeout-open">
+            <span class="meta-label">Timeout</span>
+            <strong class="topbar-timeout-summary">Timeout : {{ connection_timeout_summary }}</strong>
+          </button>
+          <form method="post" action="{{ url_for('logout') }}">
+            <button class="button secondary" type="submit">Logout</button>
+          </form>
+        </div>
+      </header>
+
+      <nav class="nav-groups">
+        {% for group in nav_groups %}
+        {% set group_id = "nav-group-" ~ loop.index %}
+        <section class="nav-group" data-nav-group>
+          <button
+            class="nav-group-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="{{ group_id }}"
+            data-nav-toggle
+          >
+            <span class="nav-group-title">{{ group["label"] }}</span>
+            <span class="nav-group-caret" aria-hidden="true"></span>
+          </button>
+          <div class="nav-links" id="{{ group_id }}" data-nav-links hidden>
+            {% for item in group["items"] %}
+            {% if item.get("disabled") %}
+            <span
+              class="nav-link disabled"
+              title="{{ item.get('disabled_reason', '') }}"
+              aria-disabled="true"
+            >
+              {{ item["label"] }}
+            </span>
+            {% else %}
+            <a
+              href="{{ url_for(item["endpoint"]) }}"
+              class="nav-link {% if current_endpoint == item["endpoint"] %}active{% endif %}"
+            >
+              {{ item["label"] }}
+            </a>
+            {% endif %}
+            {% endfor %}
+          </div>
+        </section>
+        {% endfor %}
+      </nav>
+      {% endif %}
+
+      <main class="content-card">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    {% if logged_in %}
+    <div class="modal-overlay" id="connection-timeout-modal" hidden>
+      <section class="modal-card report-value-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Connection</p>
+            <h3>Edit Timeout Settings</h3>
+          </div>
+          <button class="button secondary" type="button" id="connection-timeout-close">Close</button>
+        </div>
+        <form method="post" action="{{ url_for('update_connection_timeouts') }}" class="form-grid modal-section">
+          <section class="timeout-current-values">
+            <h4>Current Values</h4>
+            <dl class="detail-list detail-list-inline timeout-current-list">
+              <div>
+                <dt><code>connection_timeout</code></dt>
+                <dd>{{ connection_timeout_settings.connection_timeout or "-" }}</dd>
+              </div>
+              <div>
+                <dt><code>net_read_timeout</code></dt>
+                <dd>{{ connection_timeout_settings.read_timeout or "-" }}</dd>
+              </div>
+              <div>
+                <dt><code>net_write_timeout</code></dt>
+                <dd>{{ connection_timeout_settings.write_timeout or "-" }}</dd>
+              </div>
+              <div>
+                <dt><code>max_execution_time</code></dt>
+                <dd>{{ connection_timeout_settings.max_execution_time if connection_timeout_settings.max_execution_time != "" else "-" }}</dd>
+              </div>
+              <div>
+                <dt><code>wait_timeout</code></dt>
+                <dd>{{ connection_timeout_settings.wait_timeout or "-" }}</dd>
+              </div>
+              <div>
+                <dt><code>interactive_timeout</code></dt>
+                <dd>{{ connection_timeout_settings.interactive_timeout or "-" }}</dd>
+              </div>
+            </dl>
+          </section>
+          <label>
+            Connection timeout (seconds)
+            <input
+              name="connection_timeout"
+              type="number"
+              min="1"
+              step="1"
+              value="{{ connection_timeout_settings.connection_timeout }}"
+              placeholder="App default (5)"
+            >
+          </label>
+          <label>
+            Session read timeout (seconds)
+            <input
+              name="read_timeout"
+              type="number"
+              min="1"
+              step="1"
+              value="{{ connection_timeout_settings.read_timeout }}"
+            >
+          </label>
+          <label>
+            Session write timeout (seconds)
+            <input
+              name="write_timeout"
+              type="number"
+              min="1"
+              step="1"
+              value="{{ connection_timeout_settings.write_timeout }}"
+            >
+          </label>
+          <label>
+            Session max execution time (ms)
+            <input
+              name="max_execution_time"
+              type="number"
+              min="0"
+              step="1"
+              value="{{ connection_timeout_settings.max_execution_time }}"
+            >
+          </label>
+          <label>
+            Session wait timeout (seconds)
+            <input
+              name="wait_timeout"
+              type="number"
+              min="1"
+              step="1"
+              value="{{ connection_timeout_settings.wait_timeout }}"
+            >
+          </label>
+          <label>
+            Session interactive timeout (seconds)
+            <input
+              name="interactive_timeout"
+              type="number"
+              min="1"
+              step="1"
+              value="{{ connection_timeout_settings.interactive_timeout }}"
+            >
+          </label>
+          <p class="helper-text">
+            Read, write, execution, wait, and interactive timeout values are applied as session settings on each new MySQL connection.
+            Connection timeout is the connector-side connect timeout and falls back to 5 seconds when left blank.
+          </p>
+          <div class="form-actions">
+            <button class="button primary" type="submit">Save Timeout Settings</button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <script>
+      (() => {
+        const storageKey = "hw-nlsql-open-nav-group";
+        const groups = Array.from(document.querySelectorAll("[data-nav-group]"));
+        if (!groups.length) {
+          return;
+        }
+
+        const setOpenGroup = (openGroup) => {
+          groups.forEach((group) => {
+            const button = group.querySelector("[data-nav-toggle]");
+            const links = group.querySelector("[data-nav-links]");
+            const isOpen = group === openGroup;
+            group.classList.toggle("open", isOpen);
+            if (button) {
+              button.setAttribute("aria-expanded", isOpen ? "true" : "false");
+            }
+            if (links) {
+              links.hidden = !isOpen;
+            }
+          });
+
+          if (!openGroup) {
+            window.sessionStorage.removeItem(storageKey);
+            return;
+          }
+
+          const links = openGroup.querySelector("[data-nav-links]");
+          if (links && links.id) {
+            window.sessionStorage.setItem(storageKey, links.id);
+          }
+        };
+
+        let initialGroup = null;
+        const savedGroupId = window.sessionStorage.getItem(storageKey);
+        if (savedGroupId) {
+          initialGroup = groups.find((group) => {
+            const links = group.querySelector("[data-nav-links]");
+            return links && links.id === savedGroupId;
+          }) || null;
+        }
+        setOpenGroup(initialGroup);
+
+        groups.forEach((group) => {
+          const button = group.querySelector("[data-nav-toggle]");
+          if (!button) {
+            return;
+          }
+          button.addEventListener("click", () => {
+            const isOpen = group.classList.contains("open");
+            setOpenGroup(isOpen ? null : group);
+          });
+        });
+      })();
+
+      (() => {
+        const modal = document.getElementById("connection-timeout-modal");
+        const openButton = document.getElementById("connection-timeout-open");
+        const closeButton = document.getElementById("connection-timeout-close");
+        if (!modal || !openButton || !closeButton) {
+          return;
+        }
+
+        const closeModal = () => {
+          modal.hidden = true;
+        };
+
+        openButton.addEventListener("click", () => {
+          modal.hidden = false;
+        });
+        closeButton.addEventListener("click", closeModal);
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) {
+            closeModal();
+          }
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !modal.hidden) {
+            closeModal();
+          }
+        });
+      })();
+
+      (() => {
+        const tables = Array.from(document.querySelectorAll(".table-wrap table"));
+        if (!tables.length) {
+          return;
+        }
+
+        const parseValue = (value) => {
+          const text = (value || "").trim();
+          const number = Number(text.replace(/,/g, ""));
+          if (text !== "" && Number.isFinite(number)) {
+            return { type: "number", value: number };
+          }
+          const timestamp = Date.parse(text);
+          if (text && Number.isFinite(timestamp)) {
+            return { type: "number", value: timestamp };
+          }
+          return { type: "text", value: text.toLowerCase() };
+        };
+
+        const cellText = (cell) => (cell ? cell.innerText.replace(/\s+/g, " ").trim() : "");
+
+        const sortTable = (table, columnIndex, nextDirection) => {
+          const tbody = table.tBodies[0];
+          if (!tbody) {
+            return;
+          }
+          const rows = Array.from(tbody.rows);
+          rows.sort((left, right) => {
+            const leftValue = parseValue(cellText(left.cells[columnIndex]));
+            const rightValue = parseValue(cellText(right.cells[columnIndex]));
+            let result = 0;
+            if (leftValue.type === "number" && rightValue.type === "number") {
+              result = leftValue.value - rightValue.value;
+            } else {
+              result = String(leftValue.value).localeCompare(String(rightValue.value));
+            }
+            return nextDirection === "desc" ? -result : result;
+          });
+          rows.forEach((row) => tbody.appendChild(row));
+          Array.from(table.querySelectorAll("th")).forEach((header) => {
+            header.dataset.sortDirection = "";
+            header.removeAttribute("aria-sort");
+          });
+          const activeHeader = table.querySelectorAll("th")[columnIndex];
+          if (activeHeader) {
+            activeHeader.dataset.sortDirection = nextDirection;
+            activeHeader.setAttribute("aria-sort", nextDirection === "asc" ? "ascending" : "descending");
+          }
+        };
+
+        const tableMatrix = (table) => {
+          const headers = Array.from(table.querySelectorAll("thead th")).map(cellText);
+          const bodyRows = Array.from(table.tBodies[0]?.rows || []).map((row) =>
+            Array.from(row.cells).map(cellText)
+          );
+          return headers.length ? [headers, ...bodyRows] : bodyRows;
+        };
+
+        const downloadBlob = (filename, content, type) => {
+          const blob = new Blob([content], { type });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(link.href);
+        };
+
+        const csvEscape = (value) => {
+          const text = String(value ?? "");
+          return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+        };
+
+        const exportTable = (table, format) => {
+          const matrix = tableMatrix(table);
+          const title = table.dataset.tableTitle || "table-result";
+          if (format === "xls") {
+            const html = "<table>" + matrix.map((row) =>
+              "<tr>" + row.map((cell) => "<td>" + String(cell).replace(/[&<>]/g, (char) => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+              })[char]) + "</td>").join("") + "</tr>"
+            ).join("") + "</table>";
+            downloadBlob(title + ".xls", html, "application/vnd.ms-excel;charset=utf-8");
+            return;
+          }
+          downloadBlob(
+            title + ".csv",
+            matrix.map((row) => row.map(csvEscape).join(",")).join("\n"),
+            "text/csv;charset=utf-8"
+          );
+        };
+
+        const createDownloadMenu = (table, tableIndex) => {
+          const wrapper = table.closest(".table-wrap");
+          if (!wrapper || wrapper.previousElementSibling?.classList.contains("table-download-toolbar")) {
+            return;
+          }
+          table.dataset.tableTitle = table.dataset.tableTitle || "heatwave-demo-table-" + (tableIndex + 1);
+          const toolbar = document.createElement("div");
+          toolbar.className = "table-download-toolbar";
+          const button = document.createElement("button");
+          button.className = "icon-button table-download-button";
+          button.type = "button";
+          button.setAttribute("aria-label", "Download table");
+          button.title = "Download table";
+          button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          const menu = document.createElement("div");
+          menu.className = "table-download-menu";
+          menu.hidden = true;
+          [["csv", "CSV"], ["xls", "XLS"]].forEach(([format, label]) => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.textContent = label;
+            item.addEventListener("click", () => {
+              menu.hidden = true;
+              exportTable(table, format);
+            });
+            menu.appendChild(item);
+          });
+          button.addEventListener("click", () => {
+            menu.hidden = !menu.hidden;
+          });
+          document.addEventListener("click", (event) => {
+            if (!toolbar.contains(event.target)) {
+              menu.hidden = true;
+            }
+          });
+          toolbar.append(button, menu);
+          wrapper.parentNode.insertBefore(toolbar, wrapper);
+        };
+
+        const enableResize = (header) => {
+          const handle = document.createElement("span");
+          handle.className = "column-resize-handle";
+          handle.setAttribute("aria-hidden", "true");
+          header.appendChild(handle);
+          handle.addEventListener("mousedown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const startX = event.clientX;
+            const startWidth = header.offsetWidth;
+            const onMove = (moveEvent) => {
+              const width = Math.max(64, startWidth + moveEvent.clientX - startX);
+              header.style.width = width + "px";
+              header.style.minWidth = width + "px";
+            };
+            const onUp = () => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+            };
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          });
+        };
+
+        tables.forEach((table, tableIndex) => {
+          table.classList.add("enhanced-table");
+          createDownloadMenu(table, tableIndex);
+          Array.from(table.querySelectorAll("thead th")).forEach((header, columnIndex) => {
+            if (header.dataset.enhanced === "1") {
+              return;
+            }
+            header.dataset.enhanced = "1";
+            header.tabIndex = 0;
+            header.classList.add("sortable-header");
+            header.addEventListener("click", (event) => {
+              if (event.target.classList.contains("column-resize-handle")) {
+                return;
+              }
+              const nextDirection = header.dataset.sortDirection === "asc" ? "desc" : "asc";
+              sortTable(table, columnIndex, nextDirection);
+            });
+            header.addEventListener("keydown", (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                header.click();
+              }
+            });
+            enableResize(header);
+          });
+        });
+      })();
+    </script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

@@ -1,0 +1,823 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>HeatWave LH/External Table</h2>
+  <p>Generate and execute a <code>sys.HEATWAVE_LOAD</code> call for OCI object storage sources.</p>
+  <a class="doc-link" href="{{ docs_url_incremental }}" target="_blank" rel="noreferrer">Incremental Load Docs</a>
+  <a class="doc-link" href="{{ docs_url_syntax }}" target="_blank" rel="noreferrer">Lakehouse SQL Syntax Docs</a>
+</section>
+
+<section class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="HeatWave LH/External tabs">
+    {% for tab in tabs %}
+    <a
+      href="{{ url_for('heatwave_lh_external_page', tab=tab.id) }}"
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      role="tab"
+      aria-selected="{% if tab.id == active_tab %}true{% else %}false{% endif %}"
+    >
+      {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <section class="panel result-panel tab-panel">
+    {% if active_tab == "heatwave-load" %}
+    <h3>HeatWave_load</h3>
+    <p class="helper-text">Target table must not already exist in the selected database.</p>
+    {% if object_storage_setup_ready %}
+    <p class="helper-text">
+      Setup ObjectStorage:
+      <code>{{ object_storage_setup.bucket_name or "-" }}</code> /
+      <code>{{ object_storage_setup.namespace_name or "-" }}</code> /
+      <code>{{ object_storage_setup.base_folder or "-" }}</code>
+    </p>
+    {% elif object_storage_error %}
+    <p class="helper-text">{{ object_storage_error }}</p>
+    {% else %}
+    <p class="helper-text">Configure <code>Admin &gt; Setup ObjectStorage</code> to default the OCI URL from the configured bucket, namespace, and folder.</p>
+    {% endif %}
+    {% if not database_names %}
+    <p class="helper-text">No non-system databases are available for HeatWave load targets.</p>
+    {% endif %}
+    <form method="post" class="form-grid" id="heatwave-lh-external-form" enctype="multipart/form-data">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+
+      <div class="field-row field-row-two full-width-field">
+        <label>
+          DB Name
+          <select name="database_name" required>
+            {% for database_name in database_names %}
+            <option value="{{ database_name }}" {% if form_state.database_name == database_name %}selected{% endif %}>{{ database_name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label>
+          Table Name
+          <input type="text" name="table_name" value="{{ form_state.table_name }}" required>
+        </label>
+      </div>
+
+      <section class="panel full-width-field">
+        <div class="tab-strip result-tab-strip" role="tablist" aria-label="HeatWave LH object storage tabs">
+          <button
+            class="tab-link result-tab-link active"
+            type="button"
+            data-result-group="heatwave-lh-source-tabs"
+            data-result-tab="heatwave-lh-oci-url"
+            aria-selected="true"
+          >
+            OCI URL
+          </button>
+          <button
+            class="tab-link result-tab-link"
+            type="button"
+            data-result-group="heatwave-lh-source-tabs"
+            data-result-tab="heatwave-lh-object-upload"
+            aria-selected="false"
+          >
+            Object Storage Upload
+          </button>
+        </div>
+
+        <section
+          class="result-tab-panel"
+          data-result-group-panel="heatwave-lh-source-tabs"
+          data-result-panel="heatwave-lh-oci-url"
+        >
+          <h4>OCI URL</h4>
+          <p class="helper-text">Bucket, namespace, region, and base folder are configured in <code>Admin &gt; Setup ObjectStorage</code>.</p>
+          <div class="field-grid">
+            <div class="field-row field-row-two">
+              <label>
+                Object Folder
+                <select
+                  name="selected_object_folder"
+                  id="heatwave-lh-folder-select"
+                  data-bucket-name="{{ object_storage_setup.bucket_name or '' }}"
+                  data-namespace-name="{{ object_storage_setup.namespace_name or '' }}"
+                >
+                  <option value="">Select folder</option>
+                  {% for folder_name in object_folder_options %}
+                  <option value="{{ folder_name }}" {% if form_state.selected_object_folder == folder_name %}selected{% endif %}>{{ folder_name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <div class="field-actions-inline">
+                <button
+                  class="button secondary"
+                  type="submit"
+                  name="lh_external_action"
+                  value="load_folders"
+                  formnovalidate
+                  {% if not object_storage_setup_ready %}disabled{% endif %}
+                >
+                  Populate
+                </button>
+              </div>
+            </div>
+
+            {% if not object_folders_loaded %}
+            <p class="helper-text compact-helper">The page opens first. Click <code>Populate</code> only when you need the OCI Object Storage folder list.</p>
+            {% endif %}
+
+            <label class="full-width-field">
+              OCI URL
+              <input
+                type="text"
+                id="heatwave-lh-oci-uri"
+                name="oci_uri"
+                value="{{ form_state.oci_uri }}"
+                placeholder="oci://&lt;bucketname&gt;@&lt;mynamespace&gt;/&lt;folder&gt;/&lt;file pattern&gt;"
+                required
+              >
+            </label>
+
+            <div class="field-row field-row-two">
+              <label>
+                Format
+                <select name="file_format" required>
+                  {% for file_format in supported_formats %}
+                  <option value="{{ file_format }}" {% if form_state.file_format == file_format %}selected{% endif %}>{{ file_format }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="checkbox-field field-checkbox-cell">
+                <input type="checkbox" name="has_header" value="1" {% if form_state.has_header %}checked{% endif %}>
+                <span>Header row</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section
+          class="result-tab-panel"
+          data-result-group-panel="heatwave-lh-source-tabs"
+          data-result-panel="heatwave-lh-object-upload"
+          hidden
+        >
+          <h4>Object Storage Upload</h4>
+          <p class="helper-text">Upload a file into an existing folder or enter a new folder name. Uploading a file fills the OCI URL with the uploaded object path.</p>
+          <p class="helper-text">Bucket, namespace, region, and base folder are configured in <code>Admin &gt; Setup ObjectStorage</code>.</p>
+          <div class="field-grid">
+            <div class="field-row field-row-two">
+              <label>
+                Object Folder
+                <select name="upload_selected_object_folder" id="heatwave-lh-upload-folder-select">
+                  <option value="">Select folder</option>
+                  {% for folder_name in object_folder_options %}
+                  <option value="{{ folder_name }}" {% if form_state.upload_selected_object_folder == folder_name %}selected{% endif %}>{{ folder_name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <div class="field-actions-inline">
+                <button
+                  class="button secondary"
+                  type="submit"
+                  name="lh_external_action"
+                  value="load_folders"
+                  formnovalidate
+                  {% if not object_storage_setup_ready %}disabled{% endif %}
+                >
+                  Populate
+                </button>
+              </div>
+            </div>
+
+            <label class="checkbox-field">
+              <input type="checkbox" name="upload_use_new_folder" id="heatwave-lh-upload-use-new-folder" value="1" {% if form_state.upload_use_new_folder %}checked{% endif %}>
+              <span>New Folder</span>
+            </label>
+
+            <label>
+              New Folder
+              <input type="text" name="upload_new_object_folder" id="heatwave-lh-upload-new-folder" value="{{ form_state.upload_new_object_folder }}" placeholder="folder/subfolder">
+            </label>
+
+            <label>
+              Upload File
+              <input type="file" name="object_file">
+            </label>
+          </div>
+          <div class="inline-form">
+            <button
+              class="button primary"
+              type="submit"
+              name="lh_external_action"
+              value="upload_file"
+              formnovalidate
+              {% if not object_storage_setup_ready %}disabled{% endif %}
+            >
+              Upload File
+            </button>
+          </div>
+        </section>
+      </section>
+
+      <section class="option-group full-width-field">
+        <h4>HeatWave_load Options</h4>
+        <div class="field-row field-row-options">
+          <label>
+            Mode
+            <select name="mode" required>
+              {% for mode in load_modes %}
+              <option value="{{ mode }}" {% if form_state.mode == mode %}selected{% endif %}>{{ mode }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Output
+            <select name="output">
+              <option value="">Default</option>
+              {% for output in load_outputs %}
+              <option value="{{ output }}" {% if form_state.output == output %}selected{% endif %}>{{ output }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Policy
+            <select name="policy">
+              <option value="">Default</option>
+              {% for policy in load_policies %}
+              <option value="{{ policy }}" {% if form_state.policy == policy %}selected{% endif %}>{{ policy }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Set Load Parallelism
+            <select name="set_load_parallelism">
+              <option value="">Default</option>
+              <option value="true" {% if form_state.set_load_parallelism == "true" %}selected{% endif %}>true</option>
+              <option value="false" {% if form_state.set_load_parallelism == "false" %}selected{% endif %}>false</option>
+            </select>
+          </label>
+
+          <label>
+            AUTO_ENC Mode
+            <select name="auto_enc_mode">
+              <option value="">Default</option>
+              {% for auto_enc_mode in auto_enc_modes %}
+              <option value="{{ auto_enc_mode }}" {% if form_state.auto_enc_mode == auto_enc_mode %}selected{% endif %}>{{ auto_enc_mode }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label class="field-span-wide">
+            AUTO_REFRESH_SOURCE
+            <input type="text" name="auto_refresh_source" value="{{ form_state.auto_refresh_source }}" placeholder="ocid1.stream.oc1..example">
+          </label>
+
+          <label class="field-span-wide">
+            SQL_MODE
+            <input type="text" name="sql_mode" value="{{ form_state.sql_mode }}" placeholder="STRICT_TRANS_TABLES,NO_ZERO_DATE">
+          </label>
+
+          <label>
+            Sampling
+            <select name="sampling">
+              <option value="">Default</option>
+              <option value="true" {% if form_state.sampling == "true" %}selected{% endif %}>true</option>
+              <option value="false" {% if form_state.sampling == "false" %}selected{% endif %}>false</option>
+            </select>
+          </label>
+
+          <label>
+            Refresh External Tables
+            <select name="refresh_external_tables">
+              <option value="false" {% if not form_state.refresh_external_tables %}selected{% endif %}>false</option>
+              <option value="true" {% if form_state.refresh_external_tables %}selected{% endif %}>true</option>
+            </select>
+          </label>
+
+          <label>
+            Match Columns By
+            <select name="match_columns_by">
+              <option value="">Default</option>
+              {% for match_columns_by in match_columns_by_values %}
+              <option value="{{ match_columns_by }}" {% if form_state.match_columns_by == match_columns_by %}selected{% endif %}>{{ match_columns_by }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            Allow Missing Columns
+            <select name="allow_missing_columns">
+              <option value="">Default</option>
+              <option value="true" {% if form_state.allow_missing_columns == "true" %}selected{% endif %}>true</option>
+              <option value="false" {% if form_state.allow_missing_columns == "false" %}selected{% endif %}>false</option>
+            </select>
+          </label>
+
+          <label>
+            Strict Mode
+            <select name="is_strict_mode">
+              <option value="">Default</option>
+              <option value="true" {% if form_state.is_strict_mode == "true" %}selected{% endif %}>true</option>
+              <option value="false" {% if form_state.is_strict_mode == "false" %}selected{% endif %}>false</option>
+            </select>
+          </label>
+
+          <label>
+            Allow Missing Files
+            <select name="allow_missing_files">
+              <option value="">Default</option>
+              <option value="true" {% if form_state.allow_missing_files == "true" %}selected{% endif %}>true</option>
+              <option value="false" {% if form_state.allow_missing_files == "false" %}selected{% endif %}>false</option>
+            </select>
+          </label>
+
+          <label>
+            Skip Rows
+            <input type="number" min="0" max="20" name="skip_rows" value="{{ form_state.skip_rows }}" placeholder="0">
+          </label>
+
+          <label>
+            Compression
+            <select name="compression">
+              <option value="">Default</option>
+              {% for compression in compression_values %}
+              <option value="{{ compression }}" {% if form_state.compression == compression %}selected{% endif %}>{{ compression }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+        </div>
+      </section>
+
+      <label class="full-width-field">
+        Generated SQL
+        <textarea name="sql_text" rows="12">{{ form_state.sql_text }}</textarea>
+      </label>
+
+      <div class="inline-form">
+        <button class="button secondary" type="submit" name="lh_external_action" value="generate_sql">Generate</button>
+        <button class="button primary" type="submit" name="lh_external_action" value="execute_sql">Execute</button>
+        <span class="status-pill" id="heatwave-lh-external-run-status"></span>
+        {% if execution_timing %}
+        <span class="timing-pill">Execution time: {{ "%.4f"|format(execution_timing.elapsed_seconds) }} seconds</span>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if execution_timing %}
+    <p class="helper-text">
+      Started: <strong>{{ execution_timing.started_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+      <br>
+      Finished: <strong>{{ execution_timing.finished_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+    </p>
+    {% endif %}
+    {% else %}
+    <h3>Incremental Refresh</h3>
+    <p class="helper-text">Refresh existing Lakehouse engine tables, inspect their definitions, and update <code>AUTO_REFRESH_SOURCE</code>.</p>
+    <section class="split-layout lakehouse-refresh-layout">
+      <article class="panel result-panel">
+        <h4>Lakehouse Databases</h4>
+        <div class="lakehouse-db-list">
+          {% for database_name in lakehouse_databases %}
+          <a
+            href="{{ url_for('heatwave_lh_external_page', tab='incremental-refresh', refresh_db=database_name) }}"
+            class="lakehouse-db-link {% if selected_refresh_db == database_name %}active{% endif %}"
+          >
+            {{ database_name }}
+          </a>
+          {% else %}
+          <p class="helper-text">No Lakehouse engine databases found.</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="panel result-panel">
+        <h4>Lakehouse Tables</h4>
+        {% if selected_refresh_db %}
+        <p class="helper-text">Selected database: <strong>{{ selected_refresh_db }}</strong></p>
+        <p class="helper-text">Selected table: <strong>{{ selected_refresh_table or "None" }}</strong></p>
+        {% endif %}
+        <form method="post" class="lakehouse-selected-actions">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          <input type="hidden" name="refresh_db" value="{{ selected_refresh_db }}">
+          <input type="hidden" name="refresh_table" value="{{ selected_refresh_table }}">
+          <button
+            class="button secondary"
+            type="submit"
+            name="incremental_action"
+            value="show_definition"
+            {% if not selected_refresh_table %}disabled{% endif %}
+          >
+            Definition
+          </button>
+          <button
+            class="button primary"
+            type="submit"
+            name="incremental_action"
+            value="refresh_table"
+            {% if not selected_refresh_table %}disabled{% endif %}
+          >
+            Refresh
+          </button>
+        </form>
+        <div class="table-wrap">
+          <table class="admin-table report-table lakehouse-table-list">
+            <thead>
+              <tr>
+                <th>Table</th>
+                <th>Engine</th>
+                <th>Rows</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in lakehouse_tables %}
+              <tr class="{% if selected_refresh_table == row.table_name %}lakehouse-table-row-selected{% endif %}">
+                <td>
+                  <a
+                    href="{{ url_for('heatwave_lh_external_page', tab='incremental-refresh', refresh_db=selected_refresh_db, refresh_table=row.table_name) }}"
+                    class="lakehouse-table-link"
+                  >
+                    {{ row.table_name }}
+                  </a>
+                </td>
+                <td>{{ row.engine }}</td>
+                <td>{{ row.table_rows }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="3">No Lakehouse tables found for the selected database.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    {% if incremental_result_sets or incremental_execution_timing or incremental_action_sql %}
+    <section class="panel result-panel">
+      <h4>Refresh Result</h4>
+      {% if selected_refresh_table %}
+      <p class="helper-text"><strong>{{ selected_refresh_db }}.{{ selected_refresh_table }}</strong></p>
+      {% endif %}
+      {% if incremental_execution_timing %}
+      <p class="helper-text">
+        Execution time: <strong>{{ "%.4f"|format(incremental_execution_timing.elapsed_seconds) }} seconds</strong>
+        <br>
+        Started: <strong>{{ incremental_execution_timing.started_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+        <br>
+        Finished: <strong>{{ incremental_execution_timing.finished_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+      </p>
+      {% endif %}
+      {% if incremental_action_sql %}
+      <label class="full-width-field">
+        Generated SQL
+        <textarea rows="8" readonly>{{ incremental_action_sql }}</textarea>
+      </label>
+      <form method="post" class="lakehouse-selected-actions">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="refresh_db" value="{{ selected_refresh_db }}">
+        <input type="hidden" name="refresh_table" value="{{ selected_refresh_table }}">
+        <input type="hidden" name="incremental_sql" value="{{ incremental_action_sql }}">
+        <button
+          class="button primary"
+          type="submit"
+          name="incremental_action"
+          value="execute_refresh"
+          onclick="return confirm('Run incremental refresh for {{ selected_refresh_db }}.{{ selected_refresh_table }}?');"
+        >
+          Execute
+        </button>
+      </form>
+      {% endif %}
+        {% if incremental_result_sets %}
+        <div class="tab-strip result-tab-strip" role="tablist" aria-label="Incremental refresh result tabs">
+          {% for dataset in incremental_result_sets %}
+          <button
+            class="tab-link result-tab-link {% if loop.first %}active{% endif %}"
+            type="button"
+            data-result-group="incremental-refresh-results"
+            data-result-tab="incremental-refresh-{{ loop.index0 }}"
+            aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+          >
+            {{ dataset.title }}
+          </button>
+          {% endfor %}
+        </div>
+        {% for dataset in incremental_result_sets %}
+        <section
+          class="result-tab-panel"
+          data-result-group-panel="incremental-refresh-results"
+          data-result-panel="incremental-refresh-{{ loop.index0 }}"
+          {% if not loop.first %}hidden{% endif %}
+        >
+          {% if dataset.columns %}
+          <div class="table-wrap">
+            <table class="admin-table report-table">
+              <thead>
+                <tr>
+                  {% for column in dataset.columns %}
+                  <th>{{ column }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in dataset.rows %}
+                <tr>
+                  {% for value in row %}
+                  <td>
+                    <button
+                      class="report-cell-button"
+                      type="button"
+                      data-report-value="{{ value if value is not none else '' }}"
+                      data-report-column="{{ dataset.columns[loop.index0] }}"
+                    >
+                      {{ value if value is not none and value != '' else "-" }}
+                    </button>
+                  </td>
+                  {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="{{ dataset.columns|length if dataset.columns else 1 }}">No rows returned.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="helper-text">No rows returned.</p>
+          {% endif %}
+        </section>
+        {% endfor %}
+        {% else %}
+        <p class="helper-text">Run refresh to view returned result sets.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
+    <div class="modal-overlay" id="heatwave-lh-definition-modal" {% if not open_definition_modal %}hidden{% endif %}>
+      <section class="modal-card report-value-modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Lakehouse Definition</p>
+            <h3>{{ selected_refresh_db }}.{{ selected_refresh_table }}</h3>
+          </div>
+          <button class="button secondary" type="button" id="heatwave-lh-definition-close">Close</button>
+        </div>
+        {% if selected_table_definition.create_sql %}
+        <form method="post" class="definition-edit-form">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          <input type="hidden" name="refresh_db" value="{{ selected_refresh_db }}">
+          <input type="hidden" name="refresh_table" value="{{ selected_refresh_table }}">
+          <label class="full-width-field">
+            AUTO_REFRESH_SOURCE
+            <input type="text" name="new_auto_refresh_source" value="{{ selected_refresh_source }}" placeholder="ocid1.stream.oc1..example">
+          </label>
+          <div class="form-actions">
+            <button class="button primary" type="submit" name="incremental_action" value="update_refresh_source">Update Source</button>
+          </div>
+          <label class="full-width-field modal-section">
+            SHOW CREATE TABLE
+            <textarea rows="14" readonly>{{ selected_table_definition.create_sql }}</textarea>
+          </label>
+        </form>
+        {% else %}
+        <p class="helper-text">No definition loaded for the selected table.</p>
+        {% endif %}
+      </section>
+    </div>
+    {% endif %}
+  </section>
+</section>
+
+{% if active_tab == "heatwave-load" and result_sets %}
+<section class="panel result-panel">
+  <h3>Execution Result</h3>
+  <div class="tab-strip result-tab-strip" role="tablist" aria-label="HeatWave load result tabs">
+    {% for dataset in result_sets %}
+    <button
+      class="tab-link result-tab-link {% if loop.first %}active{% endif %}"
+      type="button"
+      data-result-group="heatwave-load-results"
+      data-result-tab="heatwave-load-{{ loop.index0 }}"
+      aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+    >
+      {{ dataset.title }}
+    </button>
+    {% endfor %}
+  </div>
+  {% for dataset in result_sets %}
+  <section
+    class="result-tab-panel"
+    data-result-group-panel="heatwave-load-results"
+    data-result-panel="heatwave-load-{{ loop.index0 }}"
+    {% if not loop.first %}hidden{% endif %}
+  >
+    {% if dataset.columns %}
+    <div class="table-wrap">
+      <table class="admin-table report-table">
+        <thead>
+          <tr>
+            {% for column in dataset.columns %}
+            <th>{{ column }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dataset.rows %}
+          <tr>
+            {% for value in row %}
+            <td>
+              <button
+                class="report-cell-button"
+                type="button"
+                data-report-value="{{ value if value is not none else '' }}"
+                data-report-column="{{ dataset.columns[loop.index0] }}"
+              >
+                {{ value if value is not none and value != '' else "-" }}
+              </button>
+            </td>
+            {% endfor %}
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ dataset.columns|length if dataset.columns else 1 }}">No rows returned.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="helper-text">No rows returned.</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</section>
+{% endif %}
+
+<div class="modal-overlay" id="heatwave-lh-external-value-modal" hidden>
+  <section class="modal-card report-value-modal-card">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Cell Value</p>
+        <h3 id="heatwave-lh-external-value-title">Value</h3>
+      </div>
+      <button class="button secondary" type="button" id="heatwave-lh-external-value-close">Close</button>
+    </div>
+    <pre class="report-value-content" id="heatwave-lh-external-value-content"></pre>
+  </section>
+</div>
+
+<script>
+  (() => {
+    const form = document.getElementById("heatwave-lh-external-form");
+    const status = document.getElementById("heatwave-lh-external-run-status");
+    const folderSelect = document.getElementById("heatwave-lh-folder-select");
+    const uploadFolderSelect = document.getElementById("heatwave-lh-upload-folder-select");
+    const uploadUseNewFolder = document.getElementById("heatwave-lh-upload-use-new-folder");
+    const uploadNewFolderInput = document.getElementById("heatwave-lh-upload-new-folder");
+    const ociUriInput = document.getElementById("heatwave-lh-oci-uri");
+    const modal = document.getElementById("heatwave-lh-external-value-modal");
+    const modalTitle = document.getElementById("heatwave-lh-external-value-title");
+    const modalContent = document.getElementById("heatwave-lh-external-value-content");
+    const closeButton = document.getElementById("heatwave-lh-external-value-close");
+    const definitionModal = document.getElementById("heatwave-lh-definition-modal");
+    const definitionCloseButton = document.getElementById("heatwave-lh-definition-close");
+    document.body.classList.remove("page-busy");
+    window.addEventListener("pageshow", () => {
+      document.body.classList.remove("page-busy");
+      if (status) {
+        status.textContent = "";
+        status.classList.remove("visible");
+      }
+    });
+    if (form && status) {
+      form.addEventListener("submit", (event) => {
+        const submitter = event.submitter;
+        if (!submitter || submitter.value !== "execute_sql") {
+          return;
+        }
+        document.body.classList.add("page-busy");
+        status.textContent = "Status : Running";
+        status.classList.add("visible");
+      });
+    }
+    const normalizedFolderValue = () => {
+      return String(folderSelect ? folderSelect.value : "").trim().replace(/^\/+|\/+$/g, "");
+    };
+    const buildBaseUri = () => {
+      if (!folderSelect) {
+        return "";
+      }
+      const bucketName = (folderSelect.dataset.bucketName || "").trim();
+      const namespaceName = (folderSelect.dataset.namespaceName || "").trim();
+      if (!bucketName || !namespaceName) {
+        return "";
+      }
+      const normalizedFolder = normalizedFolderValue();
+      if (normalizedFolder) {
+        return `oci://${bucketName}@${namespaceName}/${normalizedFolder}/`;
+      }
+      return `oci://${bucketName}@${namespaceName}/`;
+    };
+    let currentBaseUri = buildBaseUri();
+    const updateOciUriBase = () => {
+      if (!ociUriInput) {
+        return;
+      }
+      const nextBaseUri = buildBaseUri();
+      if (!nextBaseUri) {
+        return;
+      }
+      const currentValue = String(ociUriInput.value || "");
+      let suffix = "";
+      if (currentBaseUri && currentValue.startsWith(currentBaseUri)) {
+        suffix = currentValue.slice(currentBaseUri.length).replace(/^\/+/, "");
+      }
+      ociUriInput.value = `${nextBaseUri}${suffix}`;
+      currentBaseUri = nextBaseUri;
+    };
+    if (folderSelect && ociUriInput) {
+      folderSelect.addEventListener("change", () => {
+        updateOciUriBase();
+      });
+    }
+    const syncUploadFolderInputs = () => {
+      if (!uploadUseNewFolder || !uploadFolderSelect || !uploadNewFolderInput) {
+        return;
+      }
+      const useNewFolder = uploadUseNewFolder.checked;
+      uploadFolderSelect.disabled = useNewFolder;
+      uploadNewFolderInput.disabled = !useNewFolder;
+    };
+    if (uploadUseNewFolder && uploadFolderSelect && uploadNewFolderInput) {
+      syncUploadFolderInputs();
+      uploadUseNewFolder.addEventListener("change", syncUploadFolderInputs);
+    }
+    if (definitionModal && definitionCloseButton) {
+      const closeDefinitionModal = () => {
+        definitionModal.hidden = true;
+      };
+      definitionCloseButton.addEventListener("click", closeDefinitionModal);
+      definitionModal.addEventListener("click", (event) => {
+        if (event.target === definitionModal) {
+          closeDefinitionModal();
+        }
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !definitionModal.hidden) {
+          closeDefinitionModal();
+        }
+      });
+    }
+    const resultTabButtons = Array.from(document.querySelectorAll("[data-result-group][data-result-tab]"));
+    const resultTabPanels = Array.from(document.querySelectorAll("[data-result-group-panel][data-result-panel]"));
+    if (resultTabButtons.length && resultTabPanels.length) {
+      const activateResultTab = (groupName, tabId) => {
+        resultTabButtons.forEach((button) => {
+          const isActive = button.dataset.resultGroup === groupName && button.dataset.resultTab === tabId;
+          button.classList.toggle("active", isActive);
+          button.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+        resultTabPanels.forEach((panel) => {
+          panel.hidden = !(panel.dataset.resultGroupPanel === groupName && panel.dataset.resultPanel === tabId);
+        });
+      };
+      resultTabButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          activateResultTab(button.dataset.resultGroup, button.dataset.resultTab);
+        });
+      });
+    }
+    if (!modal || !modalTitle || !modalContent || !closeButton) {
+      return;
+    }
+    const closeModal = () => {
+      modal.hidden = true;
+    };
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest(".report-cell-button");
+      if (!button) {
+        if (event.target === modal) {
+          closeModal();
+        }
+        return;
+      }
+      modalTitle.textContent = button.dataset.reportColumn || "Value";
+      modalContent.textContent = button.dataset.reportValue || "";
+      modal.hidden = false;
+    });
+    closeButton.addEventListener("click", closeModal);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) {
+        closeModal();
+      }
+    });
+  })();
+</script>
+{% endblock %}

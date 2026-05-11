@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">Admin</p>
+  <h2>Setup configdb</h2>
+  <p>Move schemas from the available list into `nlsql.configdb` for NL_SQL.</p>
+</section>
+
+<form method="post" class="panel dual-list-form" id="configdb-form">
+  <div class="transfer-layout">
+    <section>
+      <h3>Available Databases</h3>
+      <p class="helper-text">All databases except items already stored in `nlsql.configdb`.</p>
+      <select id="available-databases" class="listbox" multiple size="14">
+        {% for database in unconfigured_databases %}
+        <option value="{{ database }}">{{ database }}</option>
+        {% endfor %}
+      </select>
+    </section>
+
+    <section class="transfer-actions">
+      <button class="button secondary" type="button" id="add-database">Add</button>
+      <button class="button secondary" type="button" id="remove-database">Remove</button>
+    </section>
+
+    <section>
+      <h3>nlsql.configdb</h3>
+      <p class="helper-text">These schemas will be saved as enabled rows in `nlsql.configdb`.</p>
+      <select id="configured-databases" name="enabled_databases" class="listbox" multiple size="14">
+        {% for database in configured_databases %}
+        <option value="{{ database }}">{{ database }}</option>
+        {% endfor %}
+      </select>
+    </section>
+  </div>
+  <div class="form-actions">
+    <button class="button primary" type="submit">Save configdb</button>
+  </div>
+</form>
+
+<script>
+  (function () {
+    const form = document.getElementById("configdb-form");
+    const available = document.getElementById("available-databases");
+    const configured = document.getElementById("configured-databases");
+    const addButton = document.getElementById("add-database");
+    const removeButton = document.getElementById("remove-database");
+
+    function moveSelected(source, target) {
+      const selected = Array.from(source.selectedOptions);
+      selected.forEach((option) => {
+        option.selected = false;
+        target.appendChild(option);
+      });
+      sortOptions(source);
+      sortOptions(target);
+    }
+
+    function sortOptions(select) {
+      const options = Array.from(select.options).sort((left, right) =>
+        left.text.localeCompare(right.text)
+      );
+      options.forEach((option) => select.appendChild(option));
+    }
+
+    addButton.addEventListener("click", function () {
+      moveSelected(available, configured);
+    });
+
+    removeButton.addEventListener("click", function () {
+      moveSelected(configured, available);
+    });
+
+    form.addEventListener("submit", function () {
+      Array.from(configured.options).forEach((option) => {
+        option.selected = true;
+      });
+    });
+  }());
+</script>
+{% endblock %}

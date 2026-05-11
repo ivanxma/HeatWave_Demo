@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">Dashboard</p>
+  <h2>HeatWave Demo</h2>
+  <p>
+    Review the demo scope or switch to live server metadata from the connected MySQL instance.
+  </p>
+</section>
+
+<section class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="Dashboard tabs">
+    {% for tab in tabs %}
+    <a
+      href="{{ url_for('home', tab=tab.id) }}"
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      role="tab"
+      aria-selected="{% if tab.id == active_tab %}true{% else %}false{% endif %}"
+    >
+      {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <section class="panel tab-panel">
+    {% if active_tab == "demo" %}
+    <div class="dashboard-demo">
+      <section class="hero-panel dashboard-hero">
+        <p class="eyebrow">Demo</p>
+        <h3>What this demo covers</h3>
+        <p class="hero-copy">
+          This demo walks through the main HeatWave capabilities in one application: natural-language SQL,
+          AutoML operations, Lakehouse external tables, and GenAI vector-search workflows against your
+          connected MySQL environment.
+        </p>
+      </section>
+
+      <section class="info-grid dashboard-metrics">
+        <article class="info-card">
+          <h3>HeatWave NL_SQL</h3>
+          <p>Ask business questions in natural language, review the generated SQL, inspect the referenced tables, and compare the SQL with the returned result sets.</p>
+        </article>
+        <article class="info-card">
+          <h3>HeatWave ML</h3>
+          <p>Initialize demo datasets such as Iris, run HeatWave AutoML operations like <code>ML_TRAIN</code>, and monitor model-related activity and progress from the UI.</p>
+        </article>
+        <article class="info-card">
+          <h3>External Table with Lakehouse</h3>
+          <p>Browse Lakehouse databases and tables, inspect table definitions, manage refresh behavior, and work with external data without loading it into native InnoDB tables first.</p>
+        </article>
+        <article class="info-card">
+          <h3>Performance with airportdb</h3>
+          <p>Review HeatWave performance views and sample query behavior using the <code>airportdb</code> demo schema when it is available on the connected server.</p>
+        </article>
+        <article class="info-card">
+          <h3>GenAI / VectorStore</h3>
+          <p>Create a knowledge base from URL content, embed and store vectors with HeatWave, then search the vector table and generate answers from the matched documents.</p>
+        </article>
+      </section>
+
+      <section class="split-layout">
+        <article class="panel">
+          <h3>Current Session</h3>
+          <dl class="detail-list">
+            <div>
+              <dt>Connection</dt>
+              <dd>{{ connection_summary }}</dd>
+            </div>
+            <div>
+              <dt>Profile</dt>
+              <dd>{{ current_profile_name or "No active profile" }}</dd>
+            </div>
+            <div>
+              <dt>User</dt>
+              <dd>{{ current_user or "Not logged in" }}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <h3>Suggested Demo Flow</h3>
+          <ol class="ordered-list">
+            <li>Confirm the active connection profile and credentials.</li>
+            <li>Use <code>Setup configdb</code> to select the schemas exposed to NL_SQL.</li>
+            <li>Run questions in <code>NL_SQL</code> and compare the generated SQL to the returned result sets.</li>
+            <li>Open <code>HeatWave ML</code> to initialize sample data and run AutoML operations.</li>
+            <li>Review <code>HeatWave Performance</code> against <code>airportdb</code> when that demo schema is installed.</li>
+            <li>Use <code>HeatWave External Table with Lakehouse</code> to review external-table metadata and refresh behavior.</li>
+            <li>Open <code>HeatWave GenAI</code> to build a vector knowledge base and search it with HeatWave generation models.</li>
+          </ol>
+        </article>
+      </section>
+    </div>
+    {% else %}
+    {% set heatwave = server_info.heatwave %}
+    <section class="dashboard-server">
+      <section class="info-grid dashboard-metrics">
+        <article class="info-card metric-card">
+          <span class="metric-label">Databases</span>
+          <strong class="metric-value">{{ server_info.summary.database_count_display }}</strong>
+          <p>Excluding <code>sys</code>, <code>information_schema</code>, <code>performance_schema</code>, and <code>mysql</code>.</p>
+        </article>
+        <article class="info-card metric-card">
+          <span class="metric-label">Tables</span>
+          <strong class="metric-value">{{ server_info.summary.table_count_display }}</strong>
+          <p>Counted from base tables across non-system schemas.</p>
+        </article>
+        <article class="info-card metric-card">
+          <span class="metric-label">Data + Index Size</span>
+          <strong class="metric-value">{{ server_info.summary.total_length_display }}</strong>
+          <p>Combined data and index footprint across non-system schemas.</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h3>Connection Details</h3>
+        <dl class="detail-list detail-list-inline dashboard-summary-list">
+          <div>
+            <dt>Connection End Point</dt>
+            <dd>{{ server_info.connection_endpoint }}</dd>
+          </div>
+          <div>
+            <dt>User</dt>
+            <dd>{{ server_info.user }}</dd>
+          </div>
+          <div>
+            <dt>Default Database</dt>
+            <dd>{{ server_info.default_database }}</dd>
+          </div>
+          <div>
+            <dt>MySQL Version</dt>
+            <dd>{{ server_info.server_version }}</dd>
+          </div>
+          <div>
+            <dt>Uptime</dt>
+            <dd>{{ server_info.uptime }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h3>HeatWave Summary</h3>
+        <dl class="detail-list detail-list-inline dashboard-summary-list">
+          <div>
+            <dt>HeatWave Status</dt>
+            <dd>
+              <span class="status-badge {{ heatwave.traffic_light.state }}">
+                <span class="status-dot {{ heatwave.traffic_light.state }}"></span>
+                {{ heatwave.traffic_light.label }}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>Cluster Status</dt>
+            <dd>{{ heatwave.status }}</dd>
+          </div>
+          <div>
+            <dt>Node Count</dt>
+            <dd>{{ heatwave.node_count }}</dd>
+          </div>
+          <div>
+            <dt>Fully Loaded Tables</dt>
+            <dd>{{ heatwave.fully_loaded_count if heatwave.fully_loaded_count is not none else "Unavailable" }}</dd>
+          </div>
+          <div>
+            <dt>Partially Loaded Tables</dt>
+            <dd>{{ heatwave.partially_loaded_count if heatwave.partially_loaded_count is not none else "Unavailable" }}</dd>
+          </div>
+          {% for status_row in heatwave.global_statuses %}
+          <div>
+            <dt>{{ status_row.name }}</dt>
+            <dd>{{ status_row.value }}</dd>
+          </div>
+          {% endfor %}
+        </dl>
+      </section>
+
+      {% if server_info.errors %}
+      <section class="panel">
+        <h3>Metadata Errors</h3>
+        <ul class="plain-list">
+          {% for error in server_info.errors %}
+          <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      <section class="panel">
+        <h3>Database Inventory</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Database</th>
+                <th>Tables</th>
+                <th>Data Length</th>
+                <th>Index Length</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in server_info.database_rows %}
+              <tr>
+                <td>
+                  {{ row.database_name }}
+                  {% if row.is_system %}
+                  <span class="table-chip muted">system</span>
+                  {% endif %}
+                </td>
+                <td>{{ row.table_count }}</td>
+                <td>{{ row.data_length_display }}</td>
+                <td>{{ row.index_length_display }}</td>
+                <td>{{ row.total_length_display }}</td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5">No schema metadata available.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="split-layout">
+        <article class="panel">
+          <h3>HeatWave Nodes</h3>
+          {% if heatwave.nodes_table.columns %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  {% for column in heatwave.nodes_table.columns %}
+                  <th>{{ column }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in heatwave.nodes_table.rows %}
+                <tr>
+                  {% for value in row %}
+                  <td>{{ value }}</td>
+                  {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="{{ heatwave.nodes_table.columns|length if heatwave.nodes_table.columns else 1 }}">No HeatWave nodes found.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="helper-text">No node metadata available.</p>
+          {% endif %}
+        </article>
+
+        <article class="panel">
+          <h3>Partial Table Loads</h3>
+          {% if heatwave.partial_tables.columns %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  {% for column in heatwave.partial_tables.columns %}
+                  <th>{{ column }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in heatwave.partial_tables.rows %}
+                <tr>
+                  {% for value in row %}
+                  <td>{{ value }}</td>
+                  {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="{{ heatwave.partial_tables.columns|length if heatwave.partial_tables.columns else 1 }}">No partially loaded tables detected.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="helper-text">No partial-load details available.</p>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="panel">
+        <h3>HeatWave Loaded Tables</h3>
+        {% if heatwave.loaded_tables.columns %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {% for column in heatwave.loaded_tables.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in heatwave.loaded_tables.rows %}
+              <tr>
+                {% for value in row %}
+                <td>{{ value }}</td>
+                {% endfor %}
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="{{ heatwave.loaded_tables.columns|length if heatwave.loaded_tables.columns else 1 }}">No loaded table metadata available.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="helper-text">No loaded table metadata available.</p>
+        {% endif %}
+      </section>
+
+      {% if heatwave.notes %}
+      <section class="panel">
+        <h3>HeatWave Notes</h3>
+        <ul class="plain-list">
+          {% for note in heatwave.notes %}
+          <li>{{ note }}</li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+    </section>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

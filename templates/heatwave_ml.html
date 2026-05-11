@@ -1,0 +1,777 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>HeatWave ML</h2>
+  {% if active_tab == "iris" %}
+  <p>Initialize the Iris AutoML demo data, run <code>ML_TRAIN</code>, and inspect the model catalog for the current login user.</p>
+  <a class="doc-link" href="{{ docs_url }}" target="_blank" rel="noreferrer">Open Iris quickstart</a>
+  {% else %}
+  <p>Generate the NL2ML SQL first, review or edit it, then execute the SQL and inspect the returned result sets and session variables.</p>
+  <a class="doc-link" href="{{ docs_url }}" target="_blank" rel="noreferrer">Open NL2ML docs</a>
+  {% endif %}
+</section>
+
+<section class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="HeatWave ML tabs">
+    {% for tab in tabs %}
+    <a
+      href="{{ url_for('heatwave_ml_page', tab=tab.id) }}"
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      role="tab"
+      aria-selected="{% if tab.id == active_tab %}true{% else %}false{% endif %}"
+    >
+      {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if active_tab == "iris" %}
+  <section class="panel tab-panel">
+    <h3>Iris</h3>
+    <p class="helper-text">The page recreates schema <code>ml_data</code> with <code>iris_train</code>, <code>iris_test</code>, and <code>iris_validate</code>.</p>
+    <div class="inline-form heatwave-ml-action-row">
+      <form method="post" id="iris-init-form" onsubmit="return confirm('Drop and recreate schema ml_data?');">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="initialize_iris">
+        <button class="button primary" type="submit">Initialize IrisDB</button>
+      </form>
+      <form method="post" id="iris-train-form" class="heatwave-ml-train-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_ml_train">
+        <label class="heatwave-ml-train-metric">
+          optimization_metric
+          <select name="classification_optimization_metric" id="iris-train-optimization-metric">
+            {% for item in classification_optimization_metrics %}
+            <option value="{{ item.value }}" {% if item.value == selected_classification_optimization_metric %}selected{% endif %}>{{ item.label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="button primary" type="submit" {% if not iris_ready %}disabled{% endif %}>Execute ML_TRAIN</button>
+      </form>
+      <form method="post" id="iris-model-load-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_ml_model_load">
+        <button class="button primary" type="submit">Execute ML_MODEL_LOAD</button>
+      </form>
+      <form method="post" id="iris-predict-row-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_ml_predict_row">
+        <button class="button primary" type="submit">Execute ML_PREDICT_ROW</button>
+      </form>
+      <form method="post" id="iris-predict-table-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_ml_predict_table">
+        <button class="button primary" type="submit">Execute ML_PREDICT_TABLE</button>
+      </form>
+      <form method="post" id="iris-score-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_ml_score">
+        <button class="button primary" type="submit">Execute ML_SCORE</button>
+      </form>
+      <form method="post" id="iris-explain-table-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_ml_explain_table">
+        <button class="button primary" type="submit">Execute ML_EXPLAIN_TABLE</button>
+      </form>
+    </div>
+    <section class="heatwave-ml-info-row">
+      <span class="status-pill" id="heatwave-ml-run-status"></span>
+      <div id="heatwave-ml-call-info" {% if not ml_call_text %}hidden{% endif %}>
+        <label>
+          <span id="heatwave-ml-call-label">{{ ml_call_title }}</span>
+          <textarea rows="4" readonly id="heatwave-ml-call-text">{{ ml_call_text }}</textarea>
+        </label>
+      </div>
+      {% if action_result %}
+      <p class="helper-text">
+        Execution time: <strong>{{ "%.4f"|format(action_result.elapsed_seconds) }} seconds</strong>
+        <br>
+        Started: <strong>{{ action_result.started_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+        <br>
+        Finished: <strong>{{ action_result.finished_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+      </p>
+      {% endif %}
+      {% if init_result %}
+      <p class="helper-text">
+        Loaded <strong>{{ init_result.train_rows }}</strong> training rows,
+        <strong>{{ init_result.test_rows }}</strong> test rows, and
+        <strong>{{ init_result.validate_rows }}</strong> validation rows.
+      </p>
+      {% endif %}
+    </section>
+  </section>
+
+  <section class="split-layout">
+    <article class="panel result-panel">
+      <h3>{{ left_panel_title }}</h3>
+      {% if left_panel_table.columns or iris_ready %}
+      <div class="table-wrap">
+        <table class="admin-table report-table">
+          <thead>
+            <tr>
+              {% for column in left_panel_table.columns %}
+              <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in left_panel_table.rows %}
+            <tr>
+              {% for value in row %}
+              <td>
+                <button
+                  class="report-cell-button"
+                  type="button"
+                  data-report-value="{{ value if value is not none else '' }}"
+                  data-report-column="{{ left_panel_table.columns[loop.index0] }}"
+                >
+                  {{ value if value is not none and value != '' else "-" }}
+                </button>
+              </td>
+              {% endfor %}
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="{{ left_panel_table.columns|length if left_panel_table.columns else 1 }}">No rows returned.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="helper-text">{{ left_panel_empty_text }}</p>
+      {% endif %}
+    </article>
+
+    <article class="panel result-panel">
+      {% if train_result_tabs %}
+      <h3>ML_TRAIN Output</h3>
+      <div class="tab-strip result-tab-strip" role="tablist" aria-label="ML_TRAIN result tabs">
+        {% for tab in train_result_tabs %}
+        <button
+          class="tab-link result-tab-link {% if loop.first %}active{% endif %}"
+          type="button"
+          data-train-result-tab="{{ tab.id }}"
+          aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+        >
+          {{ tab.label }}
+        </button>
+        {% endfor %}
+      </div>
+
+      {% for tab in train_result_tabs %}
+      <section class="result-tab-panel" data-train-result-panel="{{ tab.id }}" {% if not loop.first %}hidden{% endif %}>
+        {% if tab.dataset.columns %}
+        <div class="table-wrap">
+          <table class="admin-table report-table">
+            <thead>
+              <tr>
+                {% for column in tab.dataset.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in tab.dataset.rows %}
+              <tr>
+                {% for value in row %}
+                <td>
+                  <button
+                    class="report-cell-button"
+                    type="button"
+                    data-report-value="{{ value if value is not none else '' }}"
+                    data-report-column="{{ tab.dataset.columns[loop.index0] }}"
+                  >
+                    {{ value if value is not none and value != '' else "-" }}
+                  </button>
+                </td>
+                {% endfor %}
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="{{ tab.dataset.columns|length if tab.dataset.columns else 1 }}">No rows returned.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="helper-text">This result set returned no columns.</p>
+        {% endif %}
+      </section>
+      {% endfor %}
+      {% endif %}
+
+      {% if score_records %}
+      <h3>Score Output</h3>
+        {% for record in score_records %}
+        <section class="panel modal-section">
+          <h4>Score {{ loop.index }}</h4>
+          <dl class="detail-list">
+            {% for field in record %}
+            <div>
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <button
+                  class="report-cell-button"
+                  type="button"
+                  data-report-value="{{ field.value }}"
+                  data-report-column="{{ field.label }}"
+                >
+                  {{ field.value if field.value != '' else "-" }}
+                </button>
+              </dd>
+            </div>
+            {% endfor %}
+          </dl>
+        </section>
+        {% endfor %}
+      {% endif %}
+
+      {% if explanation_records %}
+      <h3>iris_explanations Content</h3>
+        {% for record in explanation_records %}
+        <section class="panel modal-section">
+          <h4>Explanation {{ loop.index }}</h4>
+          <dl class="detail-list">
+            {% for field in record %}
+            <div>
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <button
+                  class="report-cell-button"
+                  type="button"
+                  data-report-value="{{ field.value }}"
+                  data-report-column="{{ field.label }}"
+                >
+                  {{ field.value if field.value != '' else "-" }}
+                </button>
+              </dd>
+            </div>
+            {% endfor %}
+          </dl>
+        </section>
+        {% endfor %}
+      {% endif %}
+
+      {% if predictions_table.columns %}
+      <h3>iris_predictions Content</h3>
+      <div class="table-wrap">
+        <table class="admin-table report-table">
+          <thead>
+            <tr>
+              {% for column in predictions_table.columns %}
+              <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in predictions_table.rows %}
+            <tr>
+              {% for value in row %}
+              <td>
+                <button
+                  class="report-cell-button"
+                  type="button"
+                  data-report-value="{{ value if value is not none else '' }}"
+                  data-report-column="{{ predictions_table.columns[loop.index0] }}"
+                >
+                  {{ value if value is not none and value != '' else "-" }}
+                </button>
+              </td>
+              {% endfor %}
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="{{ predictions_table.columns|length if predictions_table.columns else 1 }}">No rows returned.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      {% if prediction_records %}
+      <h3>Prediction Output</h3>
+        {% for record in prediction_records %}
+        <section class="panel modal-section">
+          <h4>Output {{ loop.index }}</h4>
+          <dl class="detail-list">
+            {% for field in record %}
+            <div>
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <button
+                  class="report-cell-button"
+                  type="button"
+                  data-report-value="{{ field.value }}"
+                  data-report-column="{{ field.label }}"
+                >
+                  {{ field.value if field.value != '' else "-" }}
+                </button>
+              </dd>
+            </div>
+            {% endfor %}
+          </dl>
+        </section>
+        {% endfor %}
+      {% endif %}
+
+      <h3>Model Catalog{% if ml_schema_name %} : {{ ml_schema_name }}.MODEL_CATALOG{% endif %}</h3>
+      {% if model_catalog_records %}
+        {% for record in model_catalog_records %}
+        <section class="panel modal-section">
+          <h4>Record {{ loop.index }}</h4>
+          <dl class="detail-list">
+            {% for field in record %}
+            <div>
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <button
+                  class="report-cell-button"
+                  type="button"
+                  data-report-value="{{ field.value }}"
+                  data-report-column="{{ field.label }}"
+                >
+                  {{ field.value if field.value != '' else "-" }}
+                </button>
+              </dd>
+            </div>
+            {% endfor %}
+          </dl>
+        </section>
+        {% endfor %}
+      {% elif current_user_name %}
+      <p class="helper-text">No <code>iris_model</code> entry exists yet for user <code>{{ current_user_name }}</code>.</p>
+      {% else %}
+      <p class="helper-text">No active database user is available.</p>
+      {% endif %}
+    </article>
+  </section>
+  {% else %}
+  <section class="split-layout">
+    <article class="panel tab-panel">
+      <h3>NL2ML Builder</h3>
+      <form method="post" id="nl2ml-generate-form" class="definition-edit-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="generate_nl2ml">
+        <input type="hidden" name="nl2ml_sql_text" value="{{ nl2ml_sql_text }}">
+        <input type="hidden" name="nl2ml_options_raw_text" value="{{ nl2ml_options_raw_text }}">
+        <div class="field-row-two">
+          <label>
+            Choose LLM
+            <select name="nl2ml_model_id">
+              {% if supported_generation_llms %}
+                {% for model in supported_generation_llms %}
+                <option value="{{ model }}" {% if model == selected_nl2ml_model %}selected{% endif %}>{{ model }}</option>
+                {% endfor %}
+              {% else %}
+              <option value="">No generation LLM available</option>
+              {% endif %}
+            </select>
+          </label>
+          <label class="checkbox-row field-checkbox-cell">
+            <input type="checkbox" name="nl2ml_keep_chat_history" value="1" {% if keep_nl2ml_chat_history %}checked{% endif %}>
+            <span>Keep history</span>
+          </label>
+        </div>
+        <label class="full-width-field">
+          Prompt Question
+          <textarea name="nl2ml_prompt" rows="8">{{ nl2ml_prompt }}</textarea>
+        </label>
+        <p class="helper-text">Sample question: <code>How to do HeatWave Training with dataset ml_data.iris_train.</code></p>
+        {% if keep_nl2ml_chat_history and nl2ml_options_raw_text %}
+        <p class="helper-text">The next Generate reuses the latest <code>@nl2ml_options</code> value as the chat history seed.</p>
+        {% endif %}
+        <div class="form-actions">
+          <button class="button primary" type="submit">Generate</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="panel result-panel">
+      <h3>Generated SQL</h3>
+      <form method="post" id="nl2ml-execute-form" class="definition-edit-form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <input type="hidden" name="heatwave_ml_action" value="execute_nl2ml_sql">
+        <input type="hidden" name="nl2ml_model_id" value="{{ selected_nl2ml_model }}">
+        <input type="hidden" name="nl2ml_prompt" value="{{ nl2ml_prompt }}">
+        <input type="hidden" name="nl2ml_options_raw_text" value="{{ nl2ml_options_raw_text }}">
+        {% if keep_nl2ml_chat_history %}
+        <input type="hidden" name="nl2ml_keep_chat_history" value="1">
+        {% endif %}
+        <div class="generated-sql-row">
+          <label class="full-width-field">
+            Editable SQL
+            <textarea name="nl2ml_sql_text" rows="12">{{ nl2ml_sql_text }}</textarea>
+          </label>
+          <div class="generated-sql-actions">
+            <button class="button primary" type="submit" {% if not nl2ml_sql_text %}disabled{% endif %}>Execute</button>
+          </div>
+        </div>
+      </form>
+      <section class="heatwave-ml-info-row">
+        <span class="status-pill" id="heatwave-ml-run-status"></span>
+        {% if nl2ml_generation_result and not nl2ml_execution_result %}
+        <p class="helper-text">The SQL has been generated and is ready for review or editing before execution.</p>
+        {% endif %}
+        {% if nl2ml_execution_result %}
+        <p class="helper-text">
+          Execution time: <strong>{{ "%.4f"|format(nl2ml_execution_result.elapsed_seconds) }} seconds</strong>
+          <br>
+          Started: <strong>{{ nl2ml_execution_result.started_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+          <br>
+          Finished: <strong>{{ nl2ml_execution_result.finished_at.strftime("%Y-%m-%d %H:%M:%S.%f %Z") }}</strong>
+        </p>
+        {% endif %}
+      </section>
+      {% if nl2ml_result_tabs %}
+      <section class="modal-section">
+        <h3>Execution Output</h3>
+        <div class="tab-strip result-tab-strip" role="tablist" aria-label="NL2ML result tabs">
+          {% for tab in nl2ml_result_tabs %}
+          <button
+            class="tab-link result-tab-link {% if loop.first %}active{% endif %}"
+            type="button"
+            data-result-tab="{{ tab.id }}"
+            aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+          >
+            {{ tab.label }}
+          </button>
+          {% endfor %}
+        </div>
+
+        {% for tab in nl2ml_result_tabs %}
+        <section class="result-tab-panel" data-result-panel="{{ tab.id }}" {% if not loop.first %}hidden{% endif %}>
+          {% if tab.kind == "result_set" %}
+            {% if tab.dataset.columns %}
+            <div class="table-wrap">
+              <table class="admin-table report-table">
+                <thead>
+                  <tr>
+                    {% for column in tab.dataset.columns %}
+                    <th>{{ column }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in tab.dataset.rows %}
+                  <tr>
+                    {% for value in row %}
+                    <td>
+                      <button
+                        class="report-cell-button"
+                        type="button"
+                        data-report-value="{{ value if value is not none else '' }}"
+                        data-report-column="{{ tab.dataset.columns[loop.index0] }}"
+                      >
+                        {{ value if value is not none and value != '' else "-" }}
+                      </button>
+                    </td>
+                    {% endfor %}
+                  </tr>
+                  {% else %}
+                  <tr>
+                    <td colspan="{{ tab.dataset.columns|length if tab.dataset.columns else 1 }}">No rows returned.</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="helper-text">This result set returned no columns.</p>
+            {% endif %}
+          {% else %}
+            {% if tab.variable.response_text %}
+            <section class="panel modal-section">
+              <h4>Response Text</h4>
+              <div class="nl2ml-response-copy">{{ tab.variable.response_text }}</div>
+            </section>
+            {% endif %}
+
+            {% if tab.variable.pretty_text %}
+            <pre class="nl2ml-response-raw">{{ tab.variable.pretty_text }}</pre>
+            {% else %}
+            <p class="helper-text">No value available.</p>
+            {% endif %}
+
+            {% if tab.variable.fields %}
+            <section class="panel modal-section">
+              <h4>Parsed Fields</h4>
+              <dl class="detail-list">
+                {% for field in tab.variable.fields %}
+                <div>
+                  <dt>{{ field.label }}</dt>
+                  <dd>
+                    <button
+                      class="report-cell-button"
+                      type="button"
+                      data-report-value="{{ field.value }}"
+                      data-report-column="{{ field.label }}"
+                    >
+                      {{ field.value if field.value != '' else "-" }}
+                    </button>
+                  </dd>
+                </div>
+                {% endfor %}
+              </dl>
+            </section>
+            {% endif %}
+
+            {% if tab.variable.array_tables %}
+              {% for dataset in tab.variable.array_tables %}
+              <section class="panel modal-section">
+                <h4>{{ dataset.title }}</h4>
+                {% if dataset.columns %}
+                <div class="table-wrap">
+                  <table class="admin-table report-table">
+                    <thead>
+                      <tr>
+                        {% for column in dataset.columns %}
+                        <th>{{ column }}</th>
+                        {% endfor %}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in dataset.rows %}
+                      <tr>
+                        {% for value in row %}
+                        <td>
+                          <button
+                            class="report-cell-button"
+                            type="button"
+                            data-report-value="{{ value if value is not none else '' }}"
+                            data-report-column="{{ dataset.columns[loop.index0] }}"
+                          >
+                            {{ value if value is not none and value != '' else "-" }}
+                          </button>
+                        </td>
+                        {% endfor %}
+                      </tr>
+                      {% else %}
+                      <tr>
+                        <td colspan="{{ dataset.columns|length if dataset.columns else 1 }}">No rows returned.</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% else %}
+                <p class="helper-text">No rows returned.</p>
+                {% endif %}
+              </section>
+              {% endfor %}
+            {% endif %}
+          {% endif %}
+        </section>
+        {% endfor %}
+      </section>
+      {% endif %}
+    </article>
+  </section>
+  {% endif %}
+</section>
+
+<div class="modal-overlay" id="heatwave-ml-cell-modal" hidden>
+  <section class="modal-card report-value-modal-card">
+    <div class="modal-header">
+      <div>
+        <p class="eyebrow">Cell Value</p>
+        <h3 id="heatwave-ml-cell-title">Value</h3>
+      </div>
+      <button class="button secondary" type="button" id="heatwave-ml-cell-close">Close</button>
+    </div>
+    <pre class="report-value-content" id="heatwave-ml-cell-content"></pre>
+  </section>
+</div>
+
+<script>
+  (() => {
+    const initForm = document.getElementById("iris-init-form");
+    const trainForm = document.getElementById("iris-train-form");
+    const trainMetricSelect = document.getElementById("iris-train-optimization-metric");
+    const modelLoadForm = document.getElementById("iris-model-load-form");
+    const predictRowForm = document.getElementById("iris-predict-row-form");
+    const predictTableForm = document.getElementById("iris-predict-table-form");
+    const scoreForm = document.getElementById("iris-score-form");
+    const explainTableForm = document.getElementById("iris-explain-table-form");
+    const nl2mlGenerateForm = document.getElementById("nl2ml-generate-form");
+    const nl2mlExecuteForm = document.getElementById("nl2ml-execute-form");
+    const status = document.getElementById("heatwave-ml-run-status");
+    const callInfo = document.getElementById("heatwave-ml-call-info");
+    const callLabel = document.getElementById("heatwave-ml-call-label");
+    const callText = document.getElementById("heatwave-ml-call-text");
+    document.body.classList.remove("page-busy");
+    window.addEventListener("pageshow", () => {
+      document.body.classList.remove("page-busy");
+      if (status) {
+        status.textContent = "";
+        status.classList.remove("visible");
+      }
+    });
+
+    function markRunning(label) {
+      document.body.classList.add("page-busy");
+      if (status) {
+        status.textContent = label;
+        status.classList.add("visible");
+      }
+    }
+
+    function submitWithInfo(form, labelText, callValue, statusText) {
+      if (!form) {
+        return;
+      }
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (callInfo) {
+          callInfo.hidden = false;
+        }
+        if (callLabel) {
+          callLabel.textContent = labelText;
+        }
+        if (callText) {
+          callText.value = callValue;
+        }
+        markRunning(statusText);
+        window.setTimeout(() => {
+          form.submit();
+        }, 80);
+      });
+    }
+
+    function buildTrainCallText() {
+      const metricValue = trainMetricSelect ? trainMetricSelect.value : {{ selected_classification_optimization_metric|tojson }};
+      const options = [
+        "'task', 'classification'",
+        "'exclude_column_list', JSON_ARRAY('my_row_id')",
+        `'optimization_metric', '${metricValue}'`,
+      ];
+      return `CALL sys.ML_TRAIN('ml_data.iris_train', 'class', JSON_OBJECT(${options.join(", ")}), @model);`;
+    }
+
+    submitWithInfo(initForm, "Initialize Syntax", "DROP DATABASE IF EXISTS ml_data;", "Status : Initializing IrisDB");
+    if (trainForm) {
+      trainForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (callInfo) {
+          callInfo.hidden = false;
+        }
+        if (callLabel) {
+          callLabel.textContent = "ML_TRAIN Syntax";
+        }
+        if (callText) {
+          callText.value = buildTrainCallText();
+        }
+        markRunning("Status : Running ML_TRAIN");
+        window.setTimeout(() => {
+          trainForm.submit();
+        }, 80);
+      });
+    }
+    submitWithInfo(modelLoadForm, "ML_MODEL_LOAD Syntax", {{ ml_model_load_call_text_default|tojson }}, "Status : Running ML_MODEL_LOAD");
+    submitWithInfo(predictRowForm, "ML_PREDICT_ROW Syntax", {{ ml_predict_row_call_text_default|tojson }}, "Status : Running ML_PREDICT_ROW");
+    submitWithInfo(predictTableForm, "ML_PREDICT_TABLE Syntax", {{ ml_predict_table_call_text_default|tojson }}, "Status : Running ML_PREDICT_TABLE");
+    submitWithInfo(scoreForm, "ML_SCORE Syntax", {{ ml_score_call_text_default|tojson }}, "Status : Running ML_SCORE");
+    submitWithInfo(explainTableForm, "ML_EXPLAIN_TABLE Syntax", {{ ml_explain_table_call_text_default|tojson }}, "Status : Running ML_EXPLAIN_TABLE");
+    if (nl2mlGenerateForm) {
+      nl2mlGenerateForm.addEventListener("submit", () => {
+        markRunning("Status : Generating NL2ML SQL");
+      });
+    }
+    if (nl2mlExecuteForm) {
+      nl2mlExecuteForm.addEventListener("submit", () => {
+        markRunning("Status : Executing NL2ML SQL");
+      });
+    }
+  })();
+
+  (() => {
+    const tabButtons = Array.from(document.querySelectorAll("[data-result-tab]"));
+    const tabPanels = Array.from(document.querySelectorAll("[data-result-panel]"));
+    if (!tabButtons.length || !tabPanels.length) {
+      return;
+    }
+
+    const activateTab = (targetId) => {
+      tabButtons.forEach((button) => {
+        const isActive = button.dataset.resultTab === targetId;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      tabPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.resultPanel !== targetId;
+      });
+    };
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activateTab(button.dataset.resultTab || "");
+      });
+    });
+  })();
+
+  (() => {
+    const tabButtons = Array.from(document.querySelectorAll("[data-train-result-tab]"));
+    const tabPanels = Array.from(document.querySelectorAll("[data-train-result-panel]"));
+    if (!tabButtons.length || !tabPanels.length) {
+      return;
+    }
+
+    const activateTab = (targetId) => {
+      tabButtons.forEach((button) => {
+        const isActive = button.dataset.trainResultTab === targetId;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      tabPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.trainResultPanel !== targetId;
+      });
+    };
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activateTab(button.dataset.trainResultTab || "");
+      });
+    });
+  })();
+
+  (() => {
+    const modal = document.getElementById("heatwave-ml-cell-modal");
+    const modalTitle = document.getElementById("heatwave-ml-cell-title");
+    const modalContent = document.getElementById("heatwave-ml-cell-content");
+    const closeButton = document.getElementById("heatwave-ml-cell-close");
+    if (!modal || !modalTitle || !modalContent || !closeButton) {
+      return;
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+    }
+
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest(".report-cell-button");
+      if (!button) {
+        if (event.target === modal) {
+          closeModal();
+        }
+        return;
+      }
+
+      modalTitle.textContent = button.dataset.reportColumn || "Value";
+      modalContent.textContent = button.dataset.reportValue || "";
+      modal.hidden = false;
+    });
+
+    closeButton.addEventListener("click", closeModal);
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) {
+        closeModal();
+      }
+    });
+  })();
+</script>
+{% endblock %}

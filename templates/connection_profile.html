@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">Admin</p>
+  <h2>Connection Profile</h2>
+  <p>
+    Profiles store only non-secret connection settings. Database credentials are entered at login
+    time and remain in the current session only.
+  </p>
+</section>
+
+<section class="split-layout">
+  <article class="panel">
+    <h3>Saved Profiles</h3>
+    <div class="tag-list">
+      {% for profile in profiles %}
+      <a class="tag {% if profile.name == selected_profile_name %}active{% endif %}" href="{{ url_for('connection_profile', profile=profile.name) }}">
+        {{ profile.name }}
+      </a>
+      {% else %}
+      <p>No profiles saved yet.</p>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <h3>Edit Profile</h3>
+    <form method="post" action="{{ url_for('save_profile_route') }}" class="form-grid">
+      <input type="hidden" name="profile_action" value="save">
+      <input type="hidden" name="return_to" value="connection_profile">
+      <label>
+        Profile name
+        <input name="name" type="text" value="{{ form_profile.name }}">
+      </label>
+      <label>
+        Host
+        <input name="host" type="text" value="{{ form_profile.host }}">
+      </label>
+      <label>
+        Port
+        <input name="port" type="number" min="1" max="65535" value="{{ form_profile.port }}">
+      </label>
+      <label>
+        Default database
+        <input name="database" type="text" value="{{ form_profile.database }}">
+      </label>
+      <section class="option-group full-width-field">
+        <h4>SSH Tunnel</h4>
+        <label class="checkbox-field">
+          <input name="ssh_enabled" type="checkbox" value="1" {% if form_profile.ssh_enabled %}checked{% endif %}>
+          <span>Enable SSH tunnel</span>
+        </label>
+        <div class="field-row field-row-two">
+          <label>
+            SSH jump host
+            <input name="ssh_host" type="text" value="{{ form_profile.ssh_host }}">
+          </label>
+          <label>
+            SSH port
+            <input name="ssh_port" type="number" min="1" max="65535" value="{{ form_profile.ssh_port or 22 }}">
+          </label>
+        </div>
+        <div class="field-row field-row-two">
+          <label>
+            SSH user
+            <input name="ssh_user" type="text" value="{{ form_profile.ssh_user }}">
+          </label>
+          <label>
+            SSH private key path
+            <input name="ssh_key_file" type="text" value="{{ form_profile.ssh_key_file }}" placeholder="~/.ssh/id_rsa">
+          </label>
+        </div>
+      </section>
+      <label>
+        Connection timeout (seconds)
+        <input name="connection_timeout" type="number" min="1" step="1" value="{{ form_profile.connection_timeout }}" placeholder="App default (5)">
+      </label>
+      <label>
+        Read timeout (seconds)
+        <input name="read_timeout" type="number" min="1" step="1" value="{{ form_profile.read_timeout }}" placeholder="MySQL default">
+      </label>
+      <label>
+        Write timeout (seconds)
+        <input name="write_timeout" type="number" min="1" step="1" value="{{ form_profile.write_timeout }}" placeholder="MySQL default">
+      </label>
+      <label>
+        Max execution time (ms)
+        <input name="max_execution_time" type="number" min="0" step="1" value="{{ form_profile.max_execution_time }}" placeholder="MySQL default">
+      </label>
+      <label>
+        Wait timeout (seconds)
+        <input name="wait_timeout" type="number" min="1" step="1" value="{{ form_profile.wait_timeout }}" placeholder="MySQL default">
+      </label>
+      <label>
+        Interactive timeout (seconds)
+        <input name="interactive_timeout" type="number" min="1" step="1" value="{{ form_profile.interactive_timeout }}" placeholder="MySQL default">
+      </label>
+      <p class="helper-text">Leave connection timeout blank to use the app default of 5 seconds. Leave other timeout fields blank to use the MySQL or connector defaults.</p>
+      <div class="form-actions profile-actions">
+        <button class="button primary" type="submit">Save Profile</button>
+        {% if form_profile.name %}
+        <button
+          class="button secondary danger"
+          type="submit"
+          formaction="{{ url_for('save_profile_route') }}"
+          formmethod="post"
+          name="profile_action"
+          value="delete"
+        >
+          Delete Profile
+        </button>
+        {% endif %}
+      </div>
+    </form>
+  </article>
+</section>
+{% endblock %}

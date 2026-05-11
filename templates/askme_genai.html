@@ -1,0 +1,533 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <p class="eyebrow">HeatWave</p>
+  <h2>Askme GenAI</h2>
+  <p>Use AskME-style vector search, answer generation, chat, and knowledge-base management from the shared <code>askme</code> schema. Database access uses the current logged-in MySQL connection.</p>
+</section>
+
+{% if not config_status.is_ready %}
+<section class="flash warning">
+  Configure <code>{{ config_status.missing_keys|join(", ") }}</code> in <a href="{{ url_for('setup_askme_page') }}">Admin &gt; Setup ObjectStorage</a> before using Askme GenAI.
+</section>
+{% endif %}
+
+<section class="tab-shell">
+  <div class="tab-strip" role="tablist" aria-label="Askme GenAI tabs">
+    {% for tab in tabs %}
+    <a
+      href="{{ url_for('askme_genai_page', tab=tab.id) }}"
+      class="tab-link {% if tab.id == active_tab %}active{% endif %}"
+      role="tab"
+      aria-selected="{% if tab.id == active_tab %}true{% else %}false{% endif %}"
+    >
+      {{ tab.label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if active_tab == "find-relevant-docs" %}
+  <form method="post" class="panel-stack askme-vertical-layout">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <input type="hidden" name="askme_action" value="find_relevant_docs">
+    <article class="panel">
+      <h3>Find Relevant Docs</h3>
+      <label>
+        Vector Tables
+        <select name="selected_tables" multiple size="8">
+          {% for item in available_tables %}
+          <option value="{{ item }}" {% if item in selected_tables %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        LLM Model
+        <select name="generate_model_id">
+          {% for item in generation_models %}
+          <option value="{{ item }}" {% if item == selected_model %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="field-row-two">
+        <label>
+          Minimum Similarity
+          <input type="number" name="min_similarity_score" min="0" max="1" step="0.01" value="{{ relevant_min_similarity }}">
+        </label>
+        <label>
+          Top K
+          <input type="number" name="topk" min="1" max="100" value="{{ relevant_topk }}">
+        </label>
+      </div>
+      <label class="full-width-field">
+        Question
+        <textarea name="question" rows="6">{{ relevant_question }}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="button primary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Find Relevant Documents</button>
+      </div>
+    </article>
+
+    <article class="panel result-panel">
+      <h3>Output</h3>
+      {% if answer_chunks_dataset.rows and citations_by_url %}
+      <div class="tab-strip result-tab-strip" role="tablist" aria-label="Find relevant docs output tabs">
+        <button class="tab-link result-tab-link active" type="button" data-result-group="askme-find-output" data-result-tab="matches" aria-selected="true">Matches</button>
+        <button class="tab-link result-tab-link" type="button" data-result-group="askme-find-output" data-result-tab="references" aria-selected="false">References</button>
+      </div>
+      {% endif %}
+
+      <section class="result-tab-panel" data-result-group-panel="askme-find-output" data-result-panel="matches">
+        {% if answer_chunks_dataset.rows %}
+        <div class="table-wrap">
+          <table class="admin-table report-table">
+            <thead>
+              <tr>
+                {% for column in answer_chunks_dataset.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in answer_chunks_dataset.rows %}
+              <tr>
+                {% for value in row %}
+                <td>{{ value if value is not none and value != '' else '-' }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="helper-text">Run the search to see the most relevant chunks from the selected vector tables.</p>
+        {% endif %}
+      </section>
+
+      {% if answer_chunks_dataset.rows and citations_by_url %}
+      <section class="result-tab-panel" data-result-group-panel="askme-find-output" data-result-panel="references" hidden>
+        <div class="panel-stack">
+          {% for item in citations_by_url %}
+          <section class="panel modal-section">
+            <p><strong>Document:</strong> {{ item.url or '-' }}</p>
+            {% for chunk in item.chunks %}
+            <p><strong>Similarity:</strong> {{ '%.4f'|format(chunk.similarity_score or 0) }}</p>
+            <div class="code-block">{{ chunk.content_chunk }}</div>
+            {% endfor %}
+          </section>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    </article>
+  </form>
+  {% elif active_tab == "free-style-answer" %}
+  <form method="post" class="panel-stack askme-vertical-layout">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <input type="hidden" name="askme_action" value="free_style_answer">
+    <article class="panel">
+      <h3>Free-style Answer</h3>
+      <label>
+        Vector Tables
+        <select name="selected_tables" multiple size="8">
+          {% for item in available_tables %}
+          <option value="{{ item }}" {% if item in selected_tables %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        LLM Model
+        <select name="generate_model_id">
+          {% for item in generation_models %}
+          <option value="{{ item }}" {% if item == selected_model %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="full-width-field">
+        Question
+        <textarea name="question" rows="6">{{ free_style_question }}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="button primary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Answer Question</button>
+      </div>
+    </article>
+
+    <article class="panel result-panel">
+      <h3>Output</h3>
+      {% if answer_text and citations_by_url %}
+      <div class="tab-strip result-tab-strip" role="tablist" aria-label="Free-style answer output tabs">
+        <button class="tab-link result-tab-link active" type="button" data-result-group="askme-answer-output" data-result-tab="answer" aria-selected="true">Answer</button>
+        <button class="tab-link result-tab-link" type="button" data-result-group="askme-answer-output" data-result-tab="references" aria-selected="false">References</button>
+      </div>
+      {% endif %}
+
+      <section class="result-tab-panel" data-result-group-panel="askme-answer-output" data-result-panel="answer">
+        {% if answer_text %}
+        <div class="nl2ml-response-copy">{{ answer_text }}</div>
+        {% else %}
+        <p class="helper-text">Ask a question to generate an answer from the selected AskME vector tables.</p>
+        {% endif %}
+      </section>
+
+      {% if answer_text and citations_by_url %}
+      <section class="result-tab-panel" data-result-group-panel="askme-answer-output" data-result-panel="references" hidden>
+        <div class="panel-stack">
+          {% for item in citations_by_url %}
+          <section class="panel modal-section">
+            <p><strong>Document:</strong> {{ item.url or '-' }}</p>
+            {% for chunk in item.chunks %}
+            <p><strong>Similarity:</strong> {{ '%.4f'|format(chunk.similarity_score or 0) }}</p>
+            <div class="code-block">{{ chunk.content_chunk }}</div>
+            {% endfor %}
+          </section>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    </article>
+  </form>
+  {% elif active_tab == "answer-summary" %}
+  <form method="post" class="panel-stack askme-vertical-layout">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
+    <input type="hidden" name="askme_action" value="answer_summary">
+    <article class="panel">
+      <h3>Answer Summary</h3>
+      <label>
+        Vector Tables
+        <select name="selected_tables" multiple size="8">
+          {% for item in available_tables %}
+          <option value="{{ item }}" {% if item in selected_tables %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        LLM Model
+        <select name="generate_model_id">
+          {% for item in generation_models %}
+          <option value="{{ item }}" {% if item == selected_model %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="full-width-field">
+        Question
+        <textarea name="question" rows="6">{{ summary_question }}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="button primary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Generate Summary</button>
+      </div>
+    </article>
+
+    <article class="panel result-panel">
+      <h3>Output</h3>
+      {% if answer_text and citations_by_url %}
+      <div class="tab-strip result-tab-strip" role="tablist" aria-label="Answer summary output tabs">
+        <button class="tab-link result-tab-link active" type="button" data-result-group="askme-summary-output" data-result-tab="summary" aria-selected="true">Summary</button>
+        <button class="tab-link result-tab-link" type="button" data-result-group="askme-summary-output" data-result-tab="references" aria-selected="false">References</button>
+      </div>
+      {% endif %}
+
+      <section class="result-tab-panel" data-result-group-panel="askme-summary-output" data-result-panel="summary">
+        {% if answer_text %}
+        <div class="nl2ml-response-copy">{{ answer_text }}</div>
+        {% else %}
+        <p class="helper-text">Generate a concise answer summary from the selected AskME vector tables.</p>
+        {% endif %}
+      </section>
+
+      {% if answer_text and citations_by_url %}
+      <section class="result-tab-panel" data-result-group-panel="askme-summary-output" data-result-panel="references" hidden>
+        <div class="panel-stack">
+          {% for item in citations_by_url %}
+          <section class="panel modal-section">
+            <p><strong>Document:</strong> {{ item.url or '-' }}</p>
+            {% for chunk in item.chunks %}
+            <p><strong>Similarity:</strong> {{ '%.4f'|format(chunk.similarity_score or 0) }}</p>
+            <div class="code-block">{{ chunk.content_chunk }}</div>
+            {% endfor %}
+          </section>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    </article>
+  </form>
+  {% elif active_tab == "chatbot" %}
+  <div class="panel-stack askme-vertical-layout askme-chat-layout">
+    <form method="post" class="panel askme-chat-controls">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <input type="hidden" name="askme_action" value="chatbot">
+      <h3>Chatbot Controls</h3>
+      <label>
+        Vector Tables
+        <select name="selected_tables" multiple size="8">
+          {% for item in available_tables %}
+          <option value="{{ item }}" {% if item in selected_tables %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        LLM Model
+        <select name="generate_model_id">
+          {% for item in generation_models %}
+          <option value="{{ item }}" {% if item == selected_model %}selected{% endif %}>{{ item }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="full-width-field">
+        Message
+        <textarea name="question" rows="5">{{ chat_question }}</textarea>
+      </label>
+      <div class="form-actions">
+        <button class="button primary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Send Message</button>
+      </div>
+    </form>
+
+    <section class="panel askme-chat-messages">
+      <div class="panel-header-row">
+        <h3>Output</h3>
+        <form method="post" class="inline-form">
+          <input type="hidden" name="tab" value="{{ active_tab }}">
+          <input type="hidden" name="askme_action" value="clear_chat">
+          <button class="button secondary" type="submit">Clear Chat History</button>
+        </form>
+      </div>
+      <div class="tab-strip result-tab-strip" role="tablist" aria-label="Askme chatbot output tabs">
+        <button
+          class="tab-link result-tab-link active"
+          type="button"
+          data-result-group="askme-chatbot-output"
+          data-result-tab="messages"
+          aria-selected="true"
+        >
+          Messages
+        </button>
+        <button
+          class="tab-link result-tab-link"
+          type="button"
+          data-result-group="askme-chatbot-output"
+          data-result-tab="references"
+          aria-selected="false"
+        >
+          References
+        </button>
+      </div>
+
+      <section class="result-tab-panel" data-result-group-panel="askme-chatbot-output" data-result-panel="messages">
+        {% if chat_history %}
+        <div class="panel-stack">
+          {% for item in chat_history|reverse %}
+          <section class="panel modal-section">
+            <p><strong>User:</strong> {{ item.user_message if item.user_message is defined else '-' }}</p>
+            <p><strong>Assistant:</strong> {{ item.chat_bot_message if item.chat_bot_message is defined else '-' }}</p>
+          </section>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="helper-text">No chat history yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="result-tab-panel" data-result-group-panel="askme-chatbot-output" data-result-panel="references" hidden>
+        {% if citations_by_url %}
+        <div class="panel-stack">
+          {% for item in citations_by_url %}
+          <section class="panel modal-section">
+            <p><strong>Document:</strong> {{ item.url or '-' }}</p>
+            {% for chunk in item.chunks %}
+            <p><strong>Similarity:</strong> {{ '%.4f'|format(chunk.similarity_score or 0) }}</p>
+            <div class="code-block">{{ chunk.content_chunk }}</div>
+            {% endfor %}
+          </section>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="helper-text">No references available yet.</p>
+        {% endif %}
+      </section>
+    </section>
+  </div>
+  {% else %}
+  <div class="panel-stack">
+    <section class="panel">
+      <h3>Current AskME Tables</h3>
+      {% if managed_tables_dataset.rows %}
+      <div class="table-wrap">
+        <table class="admin-table report-table">
+          <thead>
+            <tr>
+              {% for column in managed_tables_dataset.columns %}
+              <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in managed_tables_dataset.rows %}
+            <tr>
+              {% for value in row %}
+              <td>{{ value }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="helper-text">No AskME vector tables found yet.</p>
+      {% endif %}
+    </section>
+
+    {% if management_message %}
+    <section class="flash {{ management_status or 'info' }}">
+      {{ management_message }}
+    </section>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" class="panel" id="askme-kb-create-form">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <input type="hidden" name="askme_action" value="kb_create">
+      <h3>Create Vector Table</h3>
+      <label>
+        Vector Table Name
+        <input type="text" name="table_name" value="{{ create_result.table_name if create_result else '' }}">
+      </label>
+      <label>
+        Files
+        <input type="file" name="files" multiple>
+      </label>
+      <p class="helper-text">Object storage target: <code>{{ config_values.OCI_BUCKET_NAME or '-' }}</code> / <code>{{ config_values.OCI_NAMESPACE or '-' }}</code> / <code>{{ config_values.OCI_BUCKET_FOLDER or '-' }}</code></p>
+      <p class="helper-text" id="askme-kb-create-status" hidden></p>
+      <div class="form-actions">
+        <button class="button primary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Upload and Create</button>
+      </div>
+    </form>
+
+    {% if create_result_tabs %}
+    <section class="panel result-panel">
+      <h3>Create Vector Table Output</h3>
+      <div class="tab-strip result-tab-strip" role="tablist" aria-label="AskME create vector table output tabs">
+        {% for tab in create_result_tabs %}
+        <button
+          class="tab-link result-tab-link {% if loop.first %}active{% endif %}"
+          type="button"
+          data-result-group="askme-create-output"
+          data-result-tab="{{ tab.id }}"
+          aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+        >
+          {{ tab.label }}
+        </button>
+        {% endfor %}
+      </div>
+
+      {% for tab in create_result_tabs %}
+      <section class="result-tab-panel" data-result-group-panel="askme-create-output" data-result-panel="{{ tab.id }}" {% if not loop.first %}hidden{% endif %}>
+        {% if tab.dataset.columns %}
+        <div class="table-wrap">
+          <table class="admin-table report-table">
+            <thead>
+              <tr>
+                {% for column in tab.dataset.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in tab.dataset.rows %}
+              <tr>
+                {% for value in row %}
+                <td>{{ value if value is not none and value != '' else "-" }}</td>
+                {% endfor %}
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="{{ tab.dataset.columns|length if tab.dataset.columns else 1 }}">No rows returned.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="helper-text">This result set returned no columns.</p>
+        {% endif %}
+      </section>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    <form method="post" class="panel">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <input type="hidden" name="askme_action" value="kb_delete">
+      <h3>Delete Vector Table</h3>
+      <label>
+        Existing Vector Table
+        <select name="delete_table_name">
+          <option value="">Choose a table</option>
+          {% for row in managed_tables_dataset.rows %}
+          <option value="{{ row[0] }}">{{ row[0] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="form-actions">
+        <button class="button secondary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Delete Vector Table</button>
+      </div>
+    </form>
+
+    <form method="post" class="panel" onsubmit="return confirm('Reset the AskME knowledge base by deleting all vector tables and object storage folders?');">
+      <input type="hidden" name="tab" value="{{ active_tab }}">
+      <input type="hidden" name="askme_action" value="kb_reset">
+      <h3>Reset Knowledge Base</h3>
+      <p class="helper-text">This removes all AskME vector tables in schema <code>askme</code> and deletes their configured object storage folders.</p>
+      <div class="form-actions">
+        <button class="button secondary" type="submit" {% if not config_status.is_ready %}disabled{% endif %}>Reset Knowledge Base</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+</section>
+<script>
+  (() => {
+    const resultTabButtons = Array.from(document.querySelectorAll("[data-result-group][data-result-tab]"));
+    const resultTabPanels = Array.from(document.querySelectorAll("[data-result-group-panel][data-result-panel]"));
+    if (!resultTabButtons.length || !resultTabPanels.length) {
+      return;
+    }
+
+    const activateResultTab = (groupName, tabId) => {
+      resultTabButtons.forEach((button) => {
+        const isActive = button.dataset.resultGroup === groupName && button.dataset.resultTab === tabId;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      resultTabPanels.forEach((panel) => {
+        panel.hidden = !(panel.dataset.resultGroupPanel === groupName && panel.dataset.resultPanel === tabId);
+      });
+    };
+
+    resultTabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activateResultTab(button.dataset.resultGroup, button.dataset.resultTab);
+      });
+    });
+
+    const kbCreateForm = document.getElementById("askme-kb-create-form");
+    const kbCreateStatus = document.getElementById("askme-kb-create-status");
+    if (kbCreateForm && kbCreateStatus) {
+      kbCreateForm.addEventListener("submit", (event) => {
+        const submitter = event.submitter;
+        if (!submitter) {
+          return;
+        }
+        submitter.disabled = true;
+        kbCreateStatus.hidden = false;
+        kbCreateStatus.textContent = "Status: Uploading files to Object Storage...";
+        window.setTimeout(() => {
+          kbCreateStatus.textContent = "Status: Upload completed or in progress. HeatWave is creating the vector table...";
+        }, 2500);
+        window.setTimeout(() => {
+          kbCreateStatus.textContent = "Status: Still running. Large documents can take several minutes. If the request fails, the server error will be shown on this page.";
+        }, 12000);
+      });
+    }
+  })();
+</script>
+{% endblock %}

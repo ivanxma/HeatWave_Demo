@@ -1,0 +1,20 @@
+[Unit]
+Description=HeatWave Demo HTTP service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__SERVICE_USER__
+Group=__SERVICE_GROUP__
+WorkingDirectory=__ROOT_DIR__
+Environment=APP_ADDRESS=__APP_ADDRESS__
+Environment=APP_PORT=__APP_PORT__
+Environment=APP_SKIP_SUDO_REEXEC=1
+ExecStart=/bin/bash __ROOT_DIR__/start_http.sh
+Restart=on-failure
+RestartSec=5
+__AMBIENT_CAPABILITY__
+
+[Install]
+WantedBy=multi-user.target

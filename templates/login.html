@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_title }} Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body class="login-body">
+    <div class="login-shell">
+      <section class="hero-panel">
+        <p class="eyebrow">HeatWave GenAI</p>
+        <h1>{{ app_title }}</h1>
+        <p class="hero-copy">
+          Sign in with a saved MySQL connection profile, then use NL_SQL and vision prompts
+          against the selected HeatWave connection.
+        </p>
+      </section>
+
+      <section class="auth-panel">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <h2>Login</h2>
+        <form method="post" class="form-grid">
+          <label>
+            Saved profile
+            <select name="profile_name" id="login-profile-select">
+              <option value="">Select profile</option>
+              {% for profile in profiles %}
+              <option value="{{ profile.name }}" {% if profile.name == selected_profile_name %}selected{% endif %}>
+                {{ profile.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Database user
+            <input name="username" type="text" value="">
+          </label>
+          <label>
+            Database password
+            <input name="password" type="password" value="">
+          </label>
+          <div class="form-actions">
+            <button class="button primary" type="submit">Login</button>
+          </div>
+        </form>
+
+        <div class="section-divider"></div>
+
+        <h2>Create Profile</h2>
+        <form method="post" action="{{ url_for('save_profile_route') }}" class="form-grid" id="login-profile-form">
+          <input type="hidden" name="profile_action" value="save">
+          <label>
+            Profile name
+            <input name="name" type="text" value="{{ form_profile.name }}">
+          </label>
+          <label>
+            Host
+            <input name="host" type="text" value="{{ form_profile.host }}">
+          </label>
+          <label>
+            Port
+            <input name="port" type="number" min="1" max="65535" value="{{ form_profile.port }}">
+          </label>
+          <label>
+            Default database
+            <input name="database" type="text" value="{{ form_profile.database }}">
+          </label>
+          <section class="option-group">
+            <h4>SSH Tunnel</h4>
+            <label class="checkbox-field">
+              <input name="ssh_enabled" type="checkbox" value="1" {% if form_profile.ssh_enabled %}checked{% endif %}>
+              <span>Enable SSH tunnel</span>
+            </label>
+            <label>
+              SSH jump host
+              <input name="ssh_host" type="text" value="{{ form_profile.ssh_host }}">
+            </label>
+            <label>
+              SSH port
+              <input name="ssh_port" type="number" min="1" max="65535" value="{{ form_profile.ssh_port or 22 }}">
+            </label>
+            <label>
+              SSH user
+              <input name="ssh_user" type="text" value="{{ form_profile.ssh_user }}">
+            </label>
+            <label>
+              SSH private key path
+              <input name="ssh_key_file" type="text" value="{{ form_profile.ssh_key_file }}" placeholder="~/.ssh/id_rsa">
+            </label>
+          </section>
+          <div class="form-actions">
+            <button class="button primary" type="submit">Save Profile</button>
+          </div>
+        </form>
+      </section>
+    </div>
+    <script>
+      (() => {
+        const profiles = {{ profiles|tojson }};
+        const select = document.getElementById("login-profile-select");
+        const form = document.getElementById("login-profile-form");
+        if (!select || !form || !Array.isArray(profiles)) {
+          return;
+        }
+        const fields = [
+          "name",
+          "host",
+          "port",
+          "database",
+          "ssh_host",
+          "ssh_port",
+          "ssh_user",
+          "ssh_key_file",
+        ];
+        select.addEventListener("change", () => {
+          const profile = profiles.find((item) => item.name === select.value);
+          if (!profile) {
+            return;
+          }
+          fields.forEach((field) => {
+            const input = form.elements[field];
+            if (input) {
+              input.value = profile[field] ?? "";
+            }
+          });
+          const sshEnabled = form.elements.ssh_enabled;
+          if (sshEnabled) {
+            sshEnabled.checked = Boolean(profile.ssh_enabled);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
