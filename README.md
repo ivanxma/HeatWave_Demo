@@ -157,6 +157,8 @@ For a full service refresh from the web UI, the service user needs passwordless 
 
 The updater uses the saved `OS_FAMILY` from `.runtime.env` when rerunning `setup.sh`. Set `HEATWAVE_DEMO_OS_FAMILY=ol9`, `ol8`, `ubuntu`, or `macos` only when you need an explicit override; otherwise rerun `./setup.sh <os-family> <deploy-mode>` once on the target host so `.runtime.env` reflects that platform.
 
+The update button is disabled only while an update is actively starting, running, or within the brief restart wait window. After the previous update finishes, the same Admin page can start another update later the same day.
+
 ## AirportDB Loader
 
 The repository also includes helper scripts to install MySQL Shell Innovation and load the MySQL `airportdb` sample dump used by the HeatWave quickstart.

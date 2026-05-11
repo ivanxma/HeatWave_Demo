@@ -2,7 +2,7 @@ import base64
 import csv
 import hashlib
 import importlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler
 import io
 from itertools import zip_longest
@@ -3227,6 +3227,34 @@ def _utc_now_text():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _parse_update_timestamp(value):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _mark_stale_restart_completed(status):
+    if status.get("state") != "restarting":
+        return status
+    restart_time = _parse_update_timestamp(status.get("restart_requested_at") or status.get("updated_at"))
+    if not restart_time:
+        return status
+    if datetime.now(timezone.utc) - restart_time < timedelta(seconds=30):
+        return status
+    status["state"] = "completed"
+    status["step"] = "Completed"
+    status["message"] = status.get("completion_message") or "Repository refresh, setup, and service restart completed."
+    status["finished_at"] = status.get("finished_at") or _utc_now_text()
+    return status
+
+
 def _read_update_status():
     default_status = {
         "state": "idle",
@@ -3252,6 +3280,7 @@ def _read_update_status():
             default_status["log_text"] = UPDATE_LOG_FILE.read_text(encoding="utf-8", errors="replace")[-20000:]
         except OSError:
             default_status["log_text"] = "The update log could not be read."
+    default_status = _mark_stale_restart_completed(default_status)
     default_status["can_start"] = default_status.get("state") not in {"starting", "running", "restarting"}
     return default_status
 
