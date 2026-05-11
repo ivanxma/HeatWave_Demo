@@ -46,13 +46,14 @@ Run the setup script to install the OS packages, create `.venv`, install MySQL S
 
 ```bash
 chmod +x setup.sh start_http.sh start_https.sh
-./setup.sh ol9 both --http-port 80 --https-port 443
+./setup.sh ol9 https --https-port 443
 ```
 
 The setup script:
 
 - supports `ol8`, `ol9`, `ubuntu`, and `macos`
 - supports deploy modes `http`, `https`, `both`, and `none`
+- defaults to HTTPS on port `443` when no deploy mode is supplied in a non-interactive setup
 - prompts interactively for omitted deploy mode and matching listener ports
 - installs `python3`, `pip`, and `openssl` where the platform needs them
 - creates `.venv` in the project directory
@@ -101,7 +102,7 @@ Create an OCI Compute instance and paste the matching initialization script into
 5. Open the `Management` tab.
 6. Paste one of the following scripts into `Initialization script`.
 7. Create the instance.
-8. SSH to the instance as `opc` after boot. The login banner shows whether installation is still running, succeeded, or failed.
+8. SSH to the instance after boot. The login banner shows whether installation is still running, succeeded, or failed.
 
 Oracle Linux 9 initialization script:
 
@@ -114,8 +115,7 @@ curl -fsSL https://raw.githubusercontent.com/ivanxma/HeatWave_Demo/main/oci_comp
 chmod 0755 /tmp/oci_compute_init.sh
 OS_FAMILY=ol9 \
 APP_REPO=https://github.com/ivanxma/HeatWave_Demo.git \
-DEPLOY_MODE=both \
-HTTP_PORT=80 \
+DEPLOY_MODE=https \
 HTTPS_PORT=443 \
 bash /tmp/oci_compute_init.sh
 ```
@@ -132,18 +132,19 @@ curl -fsSL https://raw.githubusercontent.com/ivanxma/HeatWave_Demo/main/oci_comp
 chmod 0755 /tmp/oci_compute_init.sh
 OS_FAMILY=ubuntu \
 APP_REPO=https://github.com/ivanxma/HeatWave_Demo.git \
-DEPLOY_MODE=both \
-HTTP_PORT=80 \
+APP_DIR=/home/ubuntu/HeatWave_Demo \
+APP_USER=ubuntu \
+APP_GROUP=ubuntu \
+DEPLOY_MODE=https \
 HTTPS_PORT=443 \
 bash /tmp/oci_compute_init.sh
 ```
 
-The init script clones or refreshes the repository under `/home/opc/HeatWave_Demo`, runs `setup.sh`, and records status under `/var/lib/heatwave-demo-init`. The login banner for `opc` prints `Please wait until installation to be completed.` while setup is running, `HeatWave Demo setup has been completed` with `systemctl status` after success, or a failure message pointing to `/var/log/heatwave-demo-init.log`.
+The init script clones or refreshes the repository, runs `setup.sh`, and records status under `/var/lib/heatwave-demo-init`. The login banner prints `Please wait until installation to be completed.` while setup is running, `HeatWave Demo setup has been completed` after success, or `HeatWave Demo setup failed.` after an error. The banner also shows the service name created by the init script, the failure exit code when available, `/var/log/heatwave-demo-init.log`, and `systemctl status` for the target service.
 
 Check the deployed service:
 
 ```bash
-sudo systemctl status heatwave-demo-http.service
 sudo systemctl status heatwave-demo-https.service
 sudo journalctl -u heatwave-demo-https.service -f
 ```

@@ -127,7 +127,7 @@ prompt_port() {
 
 collect_interactive_defaults() {
   if [[ ! -t 0 ]]; then
-    DEPLOY_MODE="${DEPLOY_MODE:-none}"
+    DEPLOY_MODE="${DEPLOY_MODE:-https}"
     HTTP_PORT="${HTTP_PORT:-80}"
     HTTPS_PORT="${HTTPS_PORT:-443}"
     return
@@ -137,7 +137,7 @@ collect_interactive_defaults() {
   OS_FAMILY="$(printf '%s' "${OS_FAMILY}" | tr '[:upper:]' '[:lower:]')"
 
   while [[ ! "${DEPLOY_MODE}" =~ ^(http|https|both|none)$ ]]; do
-    prompt_value DEPLOY_MODE "Deploy mode (http, https, both, none)" "${DEPLOY_MODE:-none}" 1
+    prompt_value DEPLOY_MODE "Deploy mode (http, https, both, none)" "${DEPLOY_MODE:-https}" 1
     DEPLOY_MODE="$(printf '%s' "${DEPLOY_MODE}" | tr '[:upper:]' '[:lower:]')"
   done
 
@@ -358,7 +358,7 @@ main() {
   detect_os_family
   DEPLOY_MODE="$(printf '%s' "${DEPLOY_MODE}" | tr '[:upper:]' '[:lower:]')"
   collect_interactive_defaults
-  DEPLOY_MODE="${DEPLOY_MODE:-none}"
+  DEPLOY_MODE="${DEPLOY_MODE:-https}"
   if [[ ! "${OS_FAMILY}" =~ ^(ol8|ol9|ubuntu|macos)$ ]]; then
     echo "Unsupported OS family: ${OS_FAMILY}. Expected ol8, ol9, ubuntu, or macos." >&2
     exit 1
