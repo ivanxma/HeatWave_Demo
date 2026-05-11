@@ -269,6 +269,29 @@ def _parse_expiry(value):
     return expires_at.astimezone(timezone.utc)
 
 
+def _datetime_from_oci_value(value):
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        text = _normalize_text(value)
+        if not text:
+            return None
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_active_preauthenticated_request(item, now=None):
+    expires_at = _datetime_from_oci_value(getattr(item, "time_expires", None))
+    if expires_at is None:
+        return False
+    return expires_at > (now or datetime.now(timezone.utc))
+
+
 def _create_preauthenticated_request(config_values, form):
     settings = _require_bucket_settings(config_values)
     access_type = _normalize_text(form.get("par_access_type")) or "AnyObjectRead"
@@ -333,7 +356,10 @@ def _list_preauthenticated_requests(config_values):
                 items = []
 
     rows = []
+    now = datetime.now(timezone.utc)
     for item in items or []:
+        if not _is_active_preauthenticated_request(item, now):
+            continue
         rows.append(
             {
                 "id": _normalize_text(getattr(item, "id", "")),
