@@ -88,16 +88,65 @@ If `systemd` is not available, start the app directly:
 /bin/bash ./start_https.sh
 ```
 
-## OCI Compute Init Script
+## OCI Compute Setup
 
-Use `oci_compute_init.sh` as first-boot user data or run it as root on an OCI Compute instance. It supports Oracle Linux 9 and Ubuntu through the `OS_FAMILY` variable:
+Create an OCI Compute instance and paste the matching initialization script into the instance metadata.
+
+1. In the OCI Console, open `Compute > Instances` and click `Create instance`.
+2. Choose the image:
+   - Oracle Linux 9, or
+   - Ubuntu.
+3. Choose the shape, VCN, subnet, SSH key, and public-IP settings required for your environment.
+4. Expand `Show advanced options`.
+5. Open the `Management` tab.
+6. Paste one of the following scripts into `Initialization script`.
+7. Create the instance.
+8. SSH to the instance as `opc` after boot. The login banner shows whether installation is still running, succeeded, or failed.
+
+Oracle Linux 9 initialization script:
 
 ```bash
-OS_FAMILY=ol9 APP_REPO=https://github.com/ivanxma/HeatWave_Demo.git bash ./oci_compute_init.sh
-OS_FAMILY=ubuntu APP_REPO=https://github.com/ivanxma/HeatWave_Demo.git bash ./oci_compute_init.sh
+#!/bin/bash
+set -euxo pipefail
+
+dnf install -y curl
+curl -fsSL https://raw.githubusercontent.com/ivanxma/HeatWave_Demo/main/oci_compute_init.sh -o /tmp/oci_compute_init.sh
+chmod 0755 /tmp/oci_compute_init.sh
+OS_FAMILY=ol9 \
+APP_REPO=https://github.com/ivanxma/HeatWave_Demo.git \
+DEPLOY_MODE=both \
+HTTP_PORT=80 \
+HTTPS_PORT=443 \
+bash /tmp/oci_compute_init.sh
+```
+
+Ubuntu initialization script:
+
+```bash
+#!/bin/bash
+set -euxo pipefail
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y curl
+curl -fsSL https://raw.githubusercontent.com/ivanxma/HeatWave_Demo/main/oci_compute_init.sh -o /tmp/oci_compute_init.sh
+chmod 0755 /tmp/oci_compute_init.sh
+OS_FAMILY=ubuntu \
+APP_REPO=https://github.com/ivanxma/HeatWave_Demo.git \
+DEPLOY_MODE=both \
+HTTP_PORT=80 \
+HTTPS_PORT=443 \
+bash /tmp/oci_compute_init.sh
 ```
 
 The init script clones or refreshes the repository under `/home/opc/HeatWave_Demo`, runs `setup.sh`, and records status under `/var/lib/heatwave-demo-init`. The login banner for `opc` prints `Please wait until installation to be completed.` while setup is running, `The service is installed.` with `systemctl status` after success, or a failure message pointing to `/var/log/heatwave-demo-init.log`.
+
+Check the deployed service:
+
+```bash
+sudo systemctl status heatwave-demo-http.service
+sudo systemctl status heatwave-demo-https.service
+sudo journalctl -u heatwave-demo-https.service -f
+```
 
 ## Admin Auto-Update
 
