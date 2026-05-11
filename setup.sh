@@ -166,8 +166,11 @@ install_platform_packages() {
       run_privileged apt-get update
       run_privileged env DEBIAN_FRONTEND=noninteractive apt-get install -y git openssl python3 python3-venv python3-pip ca-certificates
       ;;
-    ol8|ol9)
+    ol8)
       run_privileged dnf install -y git openssl python3 python3-pip python3-setuptools python3-wheel
+      ;;
+    ol9)
+      run_privileged dnf install -y git openssl python3 python3-pip python3-setuptools python3-pip-wheel
       ;;
     macos)
       command -v python3 >/dev/null 2>&1 || { echo "Install Python 3 first, for example with Homebrew."; exit 1; }
