@@ -54,7 +54,7 @@ printf '\n'
 if [ -f "$INSTALLING_FLAG" ]; then
   printf '%s\n' "Please wait until installation to be completed."
 elif [ -f "$INSTALLED_FLAG" ]; then
-  printf '%s\n' "The service is installed."
+  printf '%s\n' "HeatWave Demo setup has been completed"
   if [ -n "$SERVICE_NAME" ]; then
     systemctl --no-pager --full --lines=12 status "$SERVICE_NAME" || true
   fi

@@ -138,7 +138,7 @@ HTTPS_PORT=443 \
 bash /tmp/oci_compute_init.sh
 ```
 
-The init script clones or refreshes the repository under `/home/opc/HeatWave_Demo`, runs `setup.sh`, and records status under `/var/lib/heatwave-demo-init`. The login banner for `opc` prints `Please wait until installation to be completed.` while setup is running, `The service is installed.` with `systemctl status` after success, or a failure message pointing to `/var/log/heatwave-demo-init.log`.
+The init script clones or refreshes the repository under `/home/opc/HeatWave_Demo`, runs `setup.sh`, and records status under `/var/lib/heatwave-demo-init`. The login banner for `opc` prints `Please wait until installation to be completed.` while setup is running, `HeatWave Demo setup has been completed` with `systemctl status` after success, or a failure message pointing to `/var/log/heatwave-demo-init.log`.
 
 Check the deployed service:
 
