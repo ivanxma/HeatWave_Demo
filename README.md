@@ -155,6 +155,8 @@ After login, use `Admin > Update HeatWave_Demo` to refresh the app from its conf
 
 For a full service refresh from the web UI, the service user needs passwordless `sudo` for setup and service restart operations. If passwordless `sudo` is unavailable, the updater falls back to `SKIP_PRIVILEGED_SETUP=1`, refreshes the repo and Python environment, and lets systemd recover the service by restarting the current process. Run `./setup.sh` manually later if privileged package, firewall, TLS ownership, or service-unit changes were skipped.
 
+The updater uses the saved `OS_FAMILY` from `.runtime.env` when rerunning `setup.sh`. Set `HEATWAVE_DEMO_OS_FAMILY=ol9`, `ol8`, `ubuntu`, or `macos` only when you need an explicit override; otherwise rerun `./setup.sh <os-family> <deploy-mode>` once on the target host so `.runtime.env` reflects that platform.
+
 ## AirportDB Loader
 
 The repository also includes helper scripts to install MySQL Shell Innovation and load the MySQL `airportdb` sample dump used by the HeatWave quickstart.

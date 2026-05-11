@@ -24,6 +24,7 @@ from pathlib import Path
 
 HTTP_SERVICE = "heatwave-demo-http.service"
 HTTPS_SERVICE = "heatwave-demo-https.service"
+SUPPORTED_OS_FAMILIES = {"ol8", "ol9", "ubuntu", "macos"}
 
 
 def utc_now_iso():
@@ -146,6 +147,23 @@ class UpdateWorker:
             key, value = line.split("=", 1)
             runtime_env[key.strip()] = value.strip()
         return runtime_env
+
+    def resolve_os_family(self, runtime_env):
+        for source_name, value in (
+            ("HEATWAVE_DEMO_OS_FAMILY", os.environ.get("HEATWAVE_DEMO_OS_FAMILY", "")),
+            (".runtime.env OS_FAMILY", runtime_env.get("OS_FAMILY", "")),
+        ):
+            normalized = str(value or "").strip().lower()
+            if not normalized:
+                continue
+            if normalized not in SUPPORTED_OS_FAMILIES:
+                raise RuntimeError(
+                    f"Unsupported OS family `{normalized}` from {source_name}. "
+                    "Expected ol8, ol9, ubuntu, or macos."
+                )
+            return normalized, source_name
+
+        return self.detect_os_family(), "host detection"
 
     def systemctl_state(self, service_name, command):
         if not shutil.which("systemctl"):
@@ -344,11 +362,14 @@ class UpdateWorker:
         )
         self.append_log(f"[{utc_now_iso()}] Update worker started.")
 
-        os_family = self.detect_os_family()
         runtime_env = self.load_runtime_env()
+        os_family, os_family_source = self.resolve_os_family(runtime_env)
         deploy_mode, service_names = self.detect_deploy_mode_and_services(runtime_env)
         self.write_status(service_names=service_names)
-        self.log_step("Inspecting", f"Detected OS family `{os_family}` with deploy mode `{deploy_mode}`.")
+        self.log_step(
+            "Inspecting",
+            f"Using OS family `{os_family}` from {os_family_source} with deploy mode `{deploy_mode}`.",
+        )
 
         self.log_step("Checking repository", "Validating the git worktree.")
         self.ensure_clean_worktree()
