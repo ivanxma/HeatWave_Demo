@@ -13,26 +13,46 @@
       <h3>Updater</h3>
       <span class="helper-text">The updater runs in the background. During restart this page keeps polling and waits for the app to come back.</span>
     </div>
-    <form method="post">
-      <input type="hidden" name="update_action" value="start">
-      <button class="button primary" id="update-button" type="submit" {% if not update_status.can_start %}disabled{% endif %}>
-        {{ start_button_label or "Update Application" }}
-      </button>
-    </form>
+    <div class="update-action-row">
+      <form method="post">
+        <input type="hidden" name="update_action" value="check_version">
+        <button class="button secondary" type="submit">Retrieve Repo Version</button>
+      </form>
+      <form method="post">
+        <input type="hidden" name="update_action" value="start">
+        <button class="button primary" id="update-button" type="submit" {% if not update_status.can_start %}disabled{% endif %}>
+          {{ start_button_label or "Update Application" }}
+        </button>
+      </form>
+    </div>
   </div>
 
-  {% if version_status %}
-  <div class="flash {% if version_status.update_available %}info{% else %}success{% endif %}">
-    Current version: <strong>{{ version_status.current_version or app_version or "-" }}</strong>.
-    {% if version_status.update_available %}
-    Available version: <strong>{{ version_status.repo_version }}</strong>.
-    {% elif version_status.repo_version %}
-    Repository version: <strong>{{ version_status.repo_version }}</strong>.
-    {% elif version_status.error %}
-    {{ version_status.error }}
-    {% endif %}
+  <div class="version-status-card {% if version_status.update_available %}update-available{% endif %}">
+    <dl class="detail-list detail-list-inline">
+      <div>
+        <dt>App Version</dt>
+        <dd>{{ version_status.current_version or app_version or "-" }}</dd>
+      </div>
+      <div>
+        <dt>Repo Version</dt>
+        <dd>{{ version_status.repo_version or "-" }}</dd>
+      </div>
+      <div>
+        <dt>Status</dt>
+        <dd>
+          {% if version_status.update_available %}
+          Update available
+          {% elif version_status.repo_version %}
+          Versions match
+          {% elif version_status.error %}
+          {{ version_status.error }}
+          {% else %}
+          Retrieve repo version to check for updates
+          {% endif %}
+        </dd>
+      </div>
+    </dl>
   </div>
-  {% endif %}
 
   <div class="flash update-status-banner update-status-{{ update_status.state or 'idle' }}" id="update-status-banner">
     {{ update_status.message }}

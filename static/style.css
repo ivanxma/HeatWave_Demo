@@ -1714,6 +1714,26 @@ th {
   box-shadow: none;
 }
 
+.update-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.version-status-card {
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.88);
+}
+
+.version-status-card.update-available {
+  border-color: rgba(217, 45, 32, 0.35);
+  background: #fff0ec;
+}
+
 .update-log-block {
   max-height: 24rem;
   overflow: auto;

@@ -3309,21 +3309,12 @@ def read_app_version():
     return version or "unknown"
 
 
-def _version_compare_key(value):
-    parts = re.findall(r"\d+|[A-Za-z]+", str(value or ""))
-    key = []
-    for part in parts:
-        if part.isdigit():
-            key.append((1, int(part)))
-        else:
-            key.append((0, part.lower()))
-    return key
-
-
-def is_newer_version(candidate, current):
-    if not candidate or not current or current == "unknown":
+def version_requires_update(candidate, current):
+    candidate_value = str(candidate or "").strip()
+    current_value = str(current or "").strip()
+    if not candidate_value or not current_value or current_value == "unknown":
         return False
-    return _version_compare_key(candidate) > _version_compare_key(current)
+    return candidate_value != current_value
 
 
 def _default_repo_version_url():
@@ -3460,7 +3451,7 @@ def check_repo_version():
         if git_error:
             errors.append(f"git version check failed: {git_error}")
     result["repo_version"] = repo_version
-    result["update_available"] = is_newer_version(repo_version, current_version)
+    result["update_available"] = version_requires_update(repo_version, current_version)
     if not repo_version and errors:
         result["error"] = "Unable to check repository version. " + " ".join(errors)
     elif errors:
@@ -3605,6 +3596,21 @@ def _start_update_worker():
 @login_required
 def update_heatwave_demo():
     if request.method == "POST":
+        update_action = str(request.form.get("update_action", "start")).strip()
+        if update_action == "check_version":
+            version_status = check_repo_version()
+            session["version_check"] = version_status
+            if version_status.get("repo_version"):
+                flash(
+                    "Repository version: {repo_version}. Current version: {current_version}.".format(
+                        repo_version=version_status.get("repo_version") or "-",
+                        current_version=version_status.get("current_version") or "-",
+                    ),
+                    "info" if version_status.get("update_available") else "success",
+                )
+            else:
+                flash(version_status.get("error") or "Repository version could not be retrieved.", "warning")
+            return redirect(url_for("update_heatwave_demo"))
         started, message = _start_update_worker()
         flash(message, "success" if started else "warning")
         return redirect(url_for("update_heatwave_demo"))
