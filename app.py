@@ -34,8 +34,9 @@ APP_SLUG = "heatwave-demo"
 UPDATE_STATUS_FILE = Path(os.environ.get("HEATWAVE_DEMO_UPDATE_STATUS", f"/tmp/{APP_SLUG}-update-status.json"))
 UPDATE_LOG_FILE = Path(os.environ.get("HEATWAVE_DEMO_UPDATE_LOG", f"/tmp/{APP_SLUG}-update.log"))
 UPDATE_WORKER_FILE = ROOT_DIR / "heatwave_demo_update_worker.py"
-VERSION_FILE = ROOT_DIR / "heatwave_demo_ver.json"
+VERSION_FILE = ROOT_DIR / "appver.json"
 VERSION_CHECK_TIMEOUT_SECONDS = 5
+VERSION_CHECK_GIT_TIMEOUT_SECONDS = 10
 IMPORT_PREVIEW_DIR = Path("/tmp/hw_nlsql_imports")
 DEFAULT_PROFILE = {
     "name": "",
@@ -3362,6 +3363,72 @@ def _default_repo_version_url():
     return ""
 
 
+def _get_git_upstream_ref():
+    try:
+        upstream = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+            cwd=str(ROOT_DIR),
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        upstream = ""
+    if upstream and "/" in upstream:
+        remote_name, branch_name = upstream.split("/", 1)
+        return remote_name, branch_name, upstream
+
+    try:
+        branch_name = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(ROOT_DIR),
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        branch_name = ""
+    if not branch_name or branch_name == "HEAD":
+        branch_name = "main"
+    return "origin", branch_name, f"origin/{branch_name}"
+
+
+def _read_repo_version_from_git():
+    remote_name, branch_name, upstream_ref = _get_git_upstream_ref()
+    errors = []
+    try:
+        subprocess.run(
+            ["git", "fetch", "--quiet", remote_name, branch_name],
+            cwd=str(ROOT_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+            timeout=VERSION_CHECK_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        errors.append(str(error))
+
+    for ref_name in (f"{remote_name}/{branch_name}", upstream_ref):
+        try:
+            version_text = subprocess.check_output(
+                ["git", "show", f"{ref_name}:{VERSION_FILE.name}"],
+                cwd=str(ROOT_DIR),
+                text=True,
+                stderr=subprocess.DEVNULL,
+                timeout=2,
+            )
+            payload = json.loads(version_text)
+        except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+            errors.append(str(error))
+            continue
+        if isinstance(payload, dict):
+            repo_version = str(payload.get("version", "")).strip()
+            if repo_version:
+                return repo_version, ""
+    return "", "; ".join(error for error in errors if error)
+
+
 def check_repo_version():
     current_version = read_app_version()
     result = {
@@ -3374,19 +3441,30 @@ def check_repo_version():
     if not repo_url:
         result["error"] = "Repository version URL is not configured."
         return result
+    errors = []
     try:
         request_obj = urllib.request.Request(repo_url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(request_obj, timeout=VERSION_CHECK_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except Exception as error:
-        result["error"] = f"Unable to check repository version: {error}"
-        return result
-    if isinstance(payload, dict):
-        repo_version = str(payload.get("version", "")).strip()
-    else:
+        errors.append(f"raw URL check failed: {error}")
         repo_version = ""
+    else:
+        if isinstance(payload, dict):
+            repo_version = str(payload.get("version", "")).strip()
+        else:
+            repo_version = ""
+    if not repo_version:
+        git_version, git_error = _read_repo_version_from_git()
+        repo_version = git_version
+        if git_error:
+            errors.append(f"git version check failed: {git_error}")
     result["repo_version"] = repo_version
     result["update_available"] = is_newer_version(repo_version, current_version)
+    if not repo_version and errors:
+        result["error"] = "Unable to check repository version. " + " ".join(errors)
+    elif errors:
+        result["error"] = " ".join(errors)
     return result
 
 
