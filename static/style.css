@@ -965,6 +965,7 @@ textarea {
 
 .panel-actions {
   display: flex;
+  gap: 10px;
   justify-content: flex-end;
   margin-bottom: 14px;
 }
@@ -976,6 +977,12 @@ textarea {
 
 .monitoring-actions {
   justify-content: flex-start;
+}
+
+.monitoring-tab-strip {
+  margin: 4px 0 16px;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
 }
 
 .monitoring-toolbar {
@@ -1024,6 +1031,17 @@ textarea {
 .compact-helper {
   display: inline-flex;
   align-items: center;
+}
+
+.selection-column {
+  width: 44px;
+  text-align: center;
+}
+
+.selection-column input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 
 .table-action-cell form {

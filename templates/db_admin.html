@@ -42,62 +42,89 @@
       <article class="panel">
         <h3>Databases</h3>
         <p class="helper-text">System schemas are listed but cannot be deleted from this screen.</p>
-        <div class="panel-actions">
-          <a class="button secondary" href="{{ url_for('db_admin_download', tab='db', database=selected_database) }}">Download CSV</a>
-        </div>
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Database</th>
-                <th>Tables</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for database in database_inventory %}
-              <tr>
-                <td>
-                  <strong>{{ database.database_name }}</strong>
-                  {% if database.is_system %}
-                  <span class="table-chip muted">system</span>
-                  {% endif %}
-                </td>
-                <td>{{ database.table_count }}</td>
-                <td class="table-action-cell">
-                  <a class="button secondary" href="{{ url_for('db_admin_page', tab='table', database=database.database_name) }}">Open Tables</a>
-                  {% if not database.is_system %}
-                  <form method="post" onsubmit="return confirm('Load database {{ database.database_name }} to HeatWave?');">
-                    <input type="hidden" name="tab" value="db">
-                    <input type="hidden" name="db_admin_action" value="load_database_heatwave">
-                    <input type="hidden" name="database_name" value="{{ database.database_name }}">
-                    <button class="button secondary" type="submit">Load to HeatWave</button>
-                  </form>
-                  <form method="post" onsubmit="return confirm('Unload database {{ database.database_name }} from HeatWave?');">
-                    <input type="hidden" name="tab" value="db">
-                    <input type="hidden" name="db_admin_action" value="unload_database_heatwave">
-                    <input type="hidden" name="database_name" value="{{ database.database_name }}">
-                    <button class="button secondary" type="submit">Unload from HeatWave</button>
-                  </form>
-                  <form method="post" onsubmit="return confirm('Delete database {{ database.database_name }}? This will remove all tables in it.');">
-                    <input type="hidden" name="tab" value="db">
-                    <input type="hidden" name="db_admin_action" value="delete_database">
-                    <input type="hidden" name="database_name" value="{{ database.database_name }}">
-                    <button class="button secondary danger" type="submit">Delete</button>
-                  </form>
-                  {% else %}
-                  <span class="helper-text compact-helper">Protected</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="3">No databases found.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <form method="post" id="db-admin-database-bulk-form">
+          <input type="hidden" name="tab" value="db">
+          <div class="panel-actions db-admin-selection-actions">
+            <button
+              class="button secondary"
+              type="submit"
+              name="db_admin_action"
+              value="load_database_heatwave"
+              data-db-bulk-action
+              data-confirm-template="Load selected databases to HeatWave?"
+              disabled
+            >
+              Load to HeatWave
+            </button>
+            <button
+              class="button secondary"
+              type="submit"
+              name="db_admin_action"
+              value="unload_database_heatwave"
+              data-db-bulk-action
+              data-confirm-template="Unload selected databases from HeatWave?"
+              disabled
+            >
+              Unload from HeatWave
+            </button>
+            <button
+              class="button secondary danger"
+              type="submit"
+              name="db_admin_action"
+              value="delete_database"
+              data-db-bulk-action
+              data-confirm-template="Delete selected databases? This will remove all tables in them."
+              disabled
+            >
+              Delete
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th class="selection-column">
+                    <input type="checkbox" id="db-admin-select-all-databases" aria-label="Select all modifiable databases">
+                  </th>
+                  <th>Database</th>
+                  <th>Tables</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for database in database_inventory %}
+                <tr>
+                  <td class="selection-column">
+                    <input
+                      type="checkbox"
+                      name="database_name"
+                      value="{{ database.database_name }}"
+                      data-db-select-row
+                      data-system-schema="{{ '1' if database.is_system else '0' }}"
+                      aria-label="Select {{ database.database_name }}"
+                      {% if database.is_system %}disabled{% endif %}
+                    >
+                  </td>
+                  <td>
+                    <strong>
+                      <a class="table-link" href="{{ url_for('db_admin_page', tab='table', database=database.database_name) }}">
+                        {{ database.database_name }}
+                      </a>
+                    </strong>
+                    {% if database.is_system %}
+                    <span class="table-chip muted">system</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ database.table_count }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="3">No databases found.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </form>
       </article>
     </section>
     {% elif active_tab == "table" %}
@@ -137,87 +164,116 @@
           <span class="legend-item"><span class="status-dot partial"></span>Present in HeatWave but below 100%</span>
           <span class="legend-item"><span class="status-dot unavailable"></span>Not found in HeatWave metadata</span>
         </div>
-        <div class="panel-actions">
-          <a class="button secondary" href="{{ url_for('db_admin_download', tab='table', database=selected_database) }}">Download CSV</a>
-        </div>
-        <div class="table-wrap">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th>Table</th>
-                <th>Rows</th>
-                <th>Columns</th>
-                <th>Engines</th>
-                <th>HeatWave</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for table in tables %}
-              <tr>
-                <td>{{ table.table_name }}</td>
-                <td>{{ table.row_count }}</td>
-                <td>{{ table.column_count }}</td>
-                <td>{{ table.engine_display }}</td>
-                <td>
-                  {% if table.heatwave.progress_value is not none %}
-                  <span class="status-badge {% if table.heatwave.is_loaded %}loaded{% else %}partial{% endif %}">
-                    <span class="status-dot {% if table.heatwave.is_loaded %}loaded{% else %}partial{% endif %}"></span>
-                    {{ table.heatwave.progress_display }}
-                  </span>
-                  {% else %}
-                  <span class="status-badge unavailable">
-                    <span class="status-dot unavailable"></span>
-                    -
-                  </span>
-                  {% endif %}
-                </td>
-                <td class="table-action-cell">
-                  <a
-                    class="button secondary"
-                    href="{{ url_for('db_admin_page', tab='table', database=selected_database, browse_table=table.table_name) }}"
-                  >
-                    Browse
-                  </a>
-                  {% if not selected_database_is_system %}
-                  {% if table.heatwave.is_loaded %}
-                  <form method="post" onsubmit="return confirm('Unload table {{ selected_database }}.{{ table.table_name }} from HeatWave?');">
-                    <input type="hidden" name="tab" value="table">
-                    <input type="hidden" name="database" value="{{ selected_database }}">
-                    <input type="hidden" name="db_admin_action" value="unload_heatwave">
-                    <input type="hidden" name="table_name" value="{{ table.table_name }}">
-                    <button class="button secondary" type="submit">Unload</button>
-                  </form>
-                  {% else %}
-                  <form method="post" onsubmit="return confirm('Load table {{ selected_database }}.{{ table.table_name }} into HeatWave?');">
-                    <input type="hidden" name="tab" value="table">
-                    <input type="hidden" name="database" value="{{ selected_database }}">
-                    <input type="hidden" name="db_admin_action" value="load_heatwave">
-                    <input type="hidden" name="table_name" value="{{ table.table_name }}">
-                    <input type="hidden" name="secondary_engine" value="{{ table.secondary_engine }}">
-                    <button class="button secondary" type="submit">Load HeatWave</button>
-                  </form>
-                  {% endif %}
-                  <form method="post" onsubmit="return confirm('Delete table {{ selected_database }}.{{ table.table_name }}?');">
-                    <input type="hidden" name="tab" value="table">
-                    <input type="hidden" name="database" value="{{ selected_database }}">
-                    <input type="hidden" name="db_admin_action" value="delete_table">
-                    <input type="hidden" name="table_name" value="{{ table.table_name }}">
-                    <button class="button secondary danger" type="submit">Delete</button>
-                  </form>
-                  {% else %}
-                  <span class="helper-text compact-helper">Protected</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="6">No tables found in this database.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <form method="post" id="db-admin-table-bulk-form">
+          <input type="hidden" name="tab" value="table">
+          <input type="hidden" name="database" value="{{ selected_database }}">
+          <div class="panel-actions db-admin-selection-actions">
+            <button
+              class="button secondary"
+              type="submit"
+              name="db_admin_action"
+              value="load_heatwave"
+              data-table-bulk-action
+              data-table-action-kind="load"
+              data-confirm-template="Load selected tables to HeatWave?"
+              disabled
+            >
+              Load HeatWave
+            </button>
+            <button
+              class="button secondary"
+              type="submit"
+              name="db_admin_action"
+              value="unload_heatwave"
+              data-table-bulk-action
+              data-table-action-kind="unload"
+              data-confirm-template="Unload selected tables from HeatWave?"
+              disabled
+            >
+              Unload HeatWave
+            </button>
+            <button
+              class="button secondary danger"
+              type="submit"
+              name="db_admin_action"
+              value="delete_table"
+              data-table-bulk-action
+              data-table-action-kind="delete"
+              data-confirm-template="Delete selected tables?"
+              disabled
+            >
+              Delete
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th class="selection-column">
+                    <input
+                      type="checkbox"
+                      id="db-admin-select-all-tables"
+                      aria-label="Select all modifiable tables"
+                      {% if selected_database_is_system %}disabled{% endif %}
+                    >
+                  </th>
+                  <th>Table</th>
+                  <th>Rows</th>
+                  <th>Columns</th>
+                  <th>Engines</th>
+                  <th>HeatWave</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for table in tables %}
+                <tr>
+                  <td class="selection-column">
+                    <input
+                      type="checkbox"
+                      name="table_name"
+                      value="{{ table.table_name }}"
+                      data-table-select-row
+                      data-heatwave-loaded="{{ '1' if table.heatwave.is_loaded else '0' }}"
+                      aria-label="Select {{ table.table_name }}"
+                      {% if selected_database_is_system %}disabled{% endif %}
+                    >
+                  </td>
+                  <td>
+                    <strong>
+                      <a
+                        class="table-link"
+                        href="{{ url_for('db_admin_page', tab='table', database=selected_database, browse_table=table.table_name) }}"
+                      >
+                        {{ table.table_name }}
+                      </a>
+                    </strong>
+                  </td>
+                  <td>{{ table.row_count }}</td>
+                  <td>{{ table.column_count }}</td>
+                  <td>{{ table.engine_display }}</td>
+                  <td>
+                    {% if table.heatwave.progress_value is not none %}
+                    <span class="status-badge {% if table.heatwave.is_loaded %}loaded{% else %}partial{% endif %}">
+                      <span class="status-dot {% if table.heatwave.is_loaded %}loaded{% else %}partial{% endif %}"></span>
+                      {{ table.heatwave.progress_display }}
+                    </span>
+                    {% else %}
+                    <span class="status-badge unavailable">
+                      <span class="status-dot unavailable"></span>
+                      -
+                    </span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="6">No tables found in this database.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </form>
         <p class="helper-text">Choose a table from the dropdown above to load its definition.</p>
         {% else %}
         <p class="helper-text">Choose a database to list its tables.</p>
@@ -314,58 +370,69 @@
         <span class="legend-item"><span class="status-dot partial"></span>Partially loaded or in progress</span>
         <span class="legend-item"><span class="status-dot error"></span>Error status</span>
       </div>
-      <div class="panel-actions">
-        <a class="button secondary" href="{{ url_for('db_admin_download', tab='hw-tables', database=selected_database) }}">Download CSV</a>
-      </div>
-      <div class="table-wrap">
-        <table class="admin-table definition-table report-table">
-          <thead>
-            <tr>
-              {% for column in heatwave_tables_stats.columns %}
-              <th>{{ column }}</th>
+      <form method="post" id="db-admin-hw-table-bulk-form">
+        <input type="hidden" name="tab" value="hw-tables">
+        <input type="hidden" name="db_admin_action" value="unload_heatwave_hw_tables">
+        <div class="panel-actions db-admin-selection-actions">
+          <button
+            class="button secondary"
+            type="submit"
+            data-hw-table-bulk-action
+            data-confirm-template="Unload selected HeatWave tables?"
+            disabled
+          >
+            Unload
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table definition-table report-table">
+            <thead>
+              <tr>
+                <th class="selection-column">
+                  <input type="checkbox" id="db-admin-select-all-hw-tables" aria-label="Select all unloadable HeatWave tables">
+                </th>
+                {% for column in heatwave_tables_stats.columns %}
+                <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in heatwave_tables_stats.rows %}
+              {% set row_index = loop.index0 %}
+              {% set row_action = heatwave_tables_stats.row_actions[row_index] %}
+              <tr class="heatwave-table-row {{ heatwave_tables_stats.row_classes[loop.index0] }}">
+                <td class="selection-column">
+                  <input
+                    type="checkbox"
+                    name="hw_table_ref"
+                    value="{{ row_action.schema_name }}||{{ row_action.table_name }}"
+                    data-hw-table-select-row
+                    aria-label="Select {{ row_action.schema_name }}.{{ row_action.table_name }}"
+                    {% if not row_action.can_unload %}disabled{% endif %}
+                  >
+                </td>
+                {% for value in row %}
+                <td>
+                  <button
+                    class="report-cell-button"
+                    type="button"
+                    data-report-value="{{ value if value is not none else '' }}"
+                    data-report-column="{{ heatwave_tables_stats.columns[loop.index0] }}"
+                  >
+                    {{ value if value is not none else "-" }}
+                  </button>
+                </td>
+                {% endfor %}
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="{{ (heatwave_tables_stats.columns|length) + 1 if heatwave_tables_stats.columns else 1 }}">No HeatWave table rows found.</td>
+              </tr>
               {% endfor %}
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in heatwave_tables_stats.rows %}
-            {% set row_index = loop.index0 %}
-            <tr class="heatwave-table-row {{ heatwave_tables_stats.row_classes[loop.index0] }}">
-              {% for value in row %}
-              <td>
-                <button
-                  class="report-cell-button"
-                  type="button"
-                  data-report-value="{{ value if value is not none else '' }}"
-                  data-report-column="{{ heatwave_tables_stats.columns[loop.index0] }}"
-                >
-                  {{ value if value is not none else "-" }}
-                </button>
-              </td>
-              {% endfor %}
-              <td class="table-action-cell">
-                {% set row_action = heatwave_tables_stats.row_actions[row_index] %}
-                {% if row_action.can_unload %}
-                <form method="post" onsubmit="return confirm('Unload table {{ row_action.schema_name }}.{{ row_action.table_name }} from HeatWave?');">
-                  <input type="hidden" name="tab" value="hw-tables">
-                  <input type="hidden" name="database" value="{{ row_action.schema_name }}">
-                  <input type="hidden" name="db_admin_action" value="unload_heatwave_hw_tables">
-                  <input type="hidden" name="table_name" value="{{ row_action.table_name }}">
-                  <button class="button secondary" type="submit">Unload</button>
-                </form>
-                {% else %}
-                <span class="helper-text compact-helper">Unavailable</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="{{ (heatwave_tables_stats.columns|length) + 1 if heatwave_tables_stats.columns else 1 }}">No HeatWave table rows found.</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
+      </form>
     </section>
     {% elif active_tab == "monitoring" %}
     <section class="panel">
@@ -386,32 +453,6 @@
           {% if selected_monitor_view != "heatwave-ml-query" and current_ml_connection_only %}
           <input type="hidden" name="current_ml_connection_only" value="1">
           {% endif %}
-          <div class="monitoring-button-row">
-            <button
-              class="button secondary monitor-toggle-button {% if selected_monitor_view == 'heatwave-performance-query' %}active{% endif %}"
-              type="submit"
-              name="monitor_view"
-              value="heatwave-performance-query"
-            >
-              HeatWave Performance Query
-            </button>
-            <button
-              class="button secondary monitor-toggle-button {% if selected_monitor_view == 'heatwave-ml-query' %}active{% endif %}"
-              type="submit"
-              name="monitor_view"
-              value="heatwave-ml-query"
-            >
-              HeatWave ML Query
-            </button>
-            <button
-              class="button secondary monitor-toggle-button {% if selected_monitor_view == 'hw-table-load-recovery' %}active{% endif %}"
-              type="submit"
-              name="monitor_view"
-              value="hw-table-load-recovery"
-            >
-              HW Table Load Recovery
-            </button>
-          </div>
           <div class="monitoring-control-row">
             <input type="hidden" name="monitor_view" value="{{ selected_monitor_view }}">
             <label class="inline-field monitoring-refresh-field">
@@ -436,14 +477,34 @@
             </label>
             {% endif %}
             <button class="button secondary" type="submit">Refresh</button>
-            <a
-              class="button secondary"
-              href="{{ url_for('db_admin_download', tab='monitoring', monitor_view=selected_monitor_view, database=selected_database, current_ml_connection_only='1' if current_ml_connection_only else '0') }}"
-            >
-              Download CSV
-            </a>
           </div>
         </form>
+      </div>
+      <div class="tab-strip monitoring-tab-strip" role="tablist" aria-label="Monitoring views">
+        <a
+          href="{{ url_for('db_admin_page', tab='monitoring', database=selected_database, monitor_view='heatwave-performance-query', monitor_refresh=selected_monitor_refresh, current_ml_connection_only='1' if current_ml_connection_only else '0') }}"
+          class="tab-link {% if selected_monitor_view == 'heatwave-performance-query' %}active{% endif %}"
+          role="tab"
+          aria-selected="{% if selected_monitor_view == 'heatwave-performance-query' %}true{% else %}false{% endif %}"
+        >
+          HeatWave Performance Query
+        </a>
+        <a
+          href="{{ url_for('db_admin_page', tab='monitoring', database=selected_database, monitor_view='heatwave-ml-query', monitor_refresh=selected_monitor_refresh, current_ml_connection_only='1' if current_ml_connection_only else '0') }}"
+          class="tab-link {% if selected_monitor_view == 'heatwave-ml-query' %}active{% endif %}"
+          role="tab"
+          aria-selected="{% if selected_monitor_view == 'heatwave-ml-query' %}true{% else %}false{% endif %}"
+        >
+          HeatWave ML Query
+        </a>
+        <a
+          href="{{ url_for('db_admin_page', tab='monitoring', database=selected_database, monitor_view='hw-table-load-recovery', monitor_refresh=selected_monitor_refresh, current_ml_connection_only='1' if current_ml_connection_only else '0') }}"
+          class="tab-link {% if selected_monitor_view == 'hw-table-load-recovery' %}active{% endif %}"
+          role="tab"
+          aria-selected="{% if selected_monitor_view == 'hw-table-load-recovery' %}true{% else %}false{% endif %}"
+        >
+          HW Table Load Recovery
+        </a>
       </div>
       {% if selected_monitor_view == "heatwave-performance-query" %}
       <div class="table-wrap">
@@ -1028,6 +1089,244 @@
     });
 
     syncRows();
+  })();
+
+  (() => {
+    const form = document.getElementById("db-admin-database-bulk-form");
+    if (!form) {
+      return;
+    }
+
+    const selectAll = document.getElementById("db-admin-select-all-databases");
+    const rowCheckboxes = Array.from(form.querySelectorAll("[data-db-select-row]"));
+    const actionButtons = Array.from(form.querySelectorAll("[data-db-bulk-action]"));
+
+    function isProtectedRow(checkbox) {
+      return checkbox.dataset.systemSchema === "1";
+    }
+
+    function selectableRows() {
+      return rowCheckboxes.filter((checkbox) => !checkbox.disabled && !isProtectedRow(checkbox));
+    }
+
+    function selectedRows() {
+      return rowCheckboxes.filter((checkbox) => checkbox.checked);
+    }
+
+    function syncSelectionState() {
+      const selectable = selectableRows();
+      const selected = selectable.filter((checkbox) => checkbox.checked);
+      const hasSelection = selected.length > 0;
+
+      actionButtons.forEach((button) => {
+        button.disabled = !hasSelection;
+      });
+
+      if (!selectAll) {
+        return;
+      }
+      selectAll.disabled = selectable.length === 0;
+      selectAll.checked = hasSelection && selected.length === selectable.length;
+      selectAll.indeterminate = hasSelection && selected.length < selectable.length;
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        selectableRows().forEach((checkbox) => {
+          checkbox.checked = selectAll.checked;
+        });
+        syncSelectionState();
+      });
+    }
+
+    rowCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", syncSelectionState);
+    });
+
+    form.addEventListener("submit", (event) => {
+      const selected = selectedRows();
+      const protectedSelected = selected.filter(isProtectedRow);
+      if (!selected.length || protectedSelected.length) {
+        event.preventDefault();
+        syncSelectionState();
+        return;
+      }
+
+      const submitter = event.submitter;
+      const confirmTemplate = submitter ? submitter.dataset.confirmTemplate : "";
+      if (!confirmTemplate) {
+        return;
+      }
+
+      const selectedNames = selected.map((checkbox) => checkbox.value).join(", ");
+      if (!window.confirm(`${confirmTemplate}\n\nSelected: ${selectedNames}`)) {
+        event.preventDefault();
+      }
+    });
+
+    syncSelectionState();
+  })();
+
+  (() => {
+    const form = document.getElementById("db-admin-table-bulk-form");
+    if (!form) {
+      return;
+    }
+
+    const selectAll = document.getElementById("db-admin-select-all-tables");
+    const rowCheckboxes = Array.from(form.querySelectorAll("[data-table-select-row]"));
+    const actionButtons = Array.from(form.querySelectorAll("[data-table-bulk-action]"));
+
+    function selectableRows() {
+      return rowCheckboxes.filter((checkbox) => !checkbox.disabled);
+    }
+
+    function selectedRows() {
+      return selectableRows().filter((checkbox) => checkbox.checked);
+    }
+
+    function isLoaded(checkbox) {
+      return checkbox.dataset.heatwaveLoaded === "1";
+    }
+
+    function syncSelectionState() {
+      const selectable = selectableRows();
+      const selected = selectedRows();
+      const hasSelection = selected.length > 0;
+      const allSelectedLoaded = hasSelection && selected.every(isLoaded);
+      const allSelectedUnloaded = hasSelection && selected.every((checkbox) => !isLoaded(checkbox));
+
+      actionButtons.forEach((button) => {
+        const actionKind = button.dataset.tableActionKind;
+        if (actionKind === "load") {
+          button.disabled = !allSelectedUnloaded;
+        } else if (actionKind === "unload") {
+          button.disabled = !allSelectedLoaded;
+        } else {
+          button.disabled = !hasSelection;
+        }
+      });
+
+      if (!selectAll) {
+        return;
+      }
+      selectAll.disabled = selectable.length === 0;
+      selectAll.checked = hasSelection && selected.length === selectable.length;
+      selectAll.indeterminate = hasSelection && selected.length < selectable.length;
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        selectableRows().forEach((checkbox) => {
+          checkbox.checked = selectAll.checked;
+        });
+        syncSelectionState();
+      });
+    }
+
+    rowCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", syncSelectionState);
+    });
+
+    form.addEventListener("submit", (event) => {
+      const selected = selectedRows();
+      if (!selected.length) {
+        event.preventDefault();
+        syncSelectionState();
+        return;
+      }
+
+      const submitter = event.submitter;
+      if (submitter && submitter.disabled) {
+        event.preventDefault();
+        return;
+      }
+
+      const confirmTemplate = submitter ? submitter.dataset.confirmTemplate : "";
+      if (!confirmTemplate) {
+        return;
+      }
+
+      const selectedNames = selected.map((checkbox) => checkbox.value).join(", ");
+      if (!window.confirm(`${confirmTemplate}\n\nSelected: ${selectedNames}`)) {
+        event.preventDefault();
+      }
+    });
+
+    syncSelectionState();
+  })();
+
+  (() => {
+    const form = document.getElementById("db-admin-hw-table-bulk-form");
+    if (!form) {
+      return;
+    }
+
+    const selectAll = document.getElementById("db-admin-select-all-hw-tables");
+    const rowCheckboxes = Array.from(form.querySelectorAll("[data-hw-table-select-row]"));
+    const actionButtons = Array.from(form.querySelectorAll("[data-hw-table-bulk-action]"));
+
+    function selectableRows() {
+      return rowCheckboxes.filter((checkbox) => !checkbox.disabled);
+    }
+
+    function selectedRows() {
+      return selectableRows().filter((checkbox) => checkbox.checked);
+    }
+
+    function selectedNames() {
+      return selectedRows().map((checkbox) => checkbox.value.replace("||", "."));
+    }
+
+    function syncSelectionState() {
+      const selectable = selectableRows();
+      const selected = selectedRows();
+      const hasSelection = selected.length > 0;
+
+      actionButtons.forEach((button) => {
+        button.disabled = !hasSelection;
+      });
+
+      if (!selectAll) {
+        return;
+      }
+      selectAll.disabled = selectable.length === 0;
+      selectAll.checked = hasSelection && selected.length === selectable.length;
+      selectAll.indeterminate = hasSelection && selected.length < selectable.length;
+    }
+
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        selectableRows().forEach((checkbox) => {
+          checkbox.checked = selectAll.checked;
+        });
+        syncSelectionState();
+      });
+    }
+
+    rowCheckboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", syncSelectionState);
+    });
+
+    form.addEventListener("submit", (event) => {
+      if (!selectedRows().length) {
+        event.preventDefault();
+        syncSelectionState();
+        return;
+      }
+
+      const submitter = event.submitter;
+      const confirmTemplate = submitter ? submitter.dataset.confirmTemplate : "";
+      if (!confirmTemplate) {
+        return;
+      }
+
+      if (!window.confirm(`${confirmTemplate}\n\nSelected: ${selectedNames().join(", ")}`)) {
+        event.preventDefault();
+      }
+    });
+
+    syncSelectionState();
   })();
 
   (() => {

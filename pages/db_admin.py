@@ -56,6 +56,69 @@ def _normalize_monitor_refresh(raw_value):
     return value if value in {"2", "5", "30", "60", "none"} else "none"
 
 
+def _selected_database_names(form):
+    return [str(value or "").strip() for value in form.getlist("database_name") if str(value or "").strip()]
+
+
+def _ensure_bulk_database_selection(database_names, action_label):
+    if not database_names:
+        raise ValueError(f"Select at least one database before choosing {action_label}.")
+    protected_names = [name for name in database_names if _is_system_database(name)]
+    if protected_names:
+        raise ValueError("System schemas cannot be modified: {}.".format(", ".join(protected_names)))
+    return database_names
+
+
+def _selected_table_names(form):
+    table_names = []
+    for value in form.getlist("table_name"):
+        table_name = str(value or "").strip()
+        if table_name and table_name not in table_names:
+            table_names.append(table_name)
+    return table_names
+
+
+def _ensure_bulk_table_selection(database_name, table_names, action_label):
+    if not database_name:
+        raise ValueError(f"Choose a database before choosing {action_label}.")
+    if _is_system_database(database_name):
+        raise ValueError("Tables in system schemas cannot be modified from this screen.")
+    if not table_names:
+        raise ValueError(f"Select at least one table before choosing {action_label}.")
+    return table_names
+
+
+def _selected_heatwave_table_refs(form):
+    refs = []
+    for value in form.getlist("hw_table_ref"):
+        raw_value = str(value or "").strip()
+        if not raw_value:
+            continue
+        if "||" in raw_value:
+            schema_name, table_name = [part.strip() for part in raw_value.split("||", 1)]
+        elif "\t" in raw_value:
+            schema_name, table_name = [part.strip() for part in raw_value.split("\t", 1)]
+        else:
+            continue
+        if schema_name and table_name and (schema_name, table_name) not in refs:
+            refs.append((schema_name, table_name))
+    if refs:
+        return refs
+
+    schema_name = str(form.get("database", "") or "").strip()
+    table_name = str(form.get("table_name", "") or "").strip()
+    return [(schema_name, table_name)] if schema_name and table_name else []
+
+
+def _ensure_heatwave_table_selection(table_refs):
+    if not table_refs:
+        raise ValueError("Select at least one HeatWave table before choosing Unload.")
+    protected_refs = [f"{schema_name}.{table_name}" for schema_name, table_name in table_refs if _is_system_database(schema_name)]
+    if protected_refs:
+        raise ValueError("Tables in system schemas cannot be modified from this screen: {}.".format(", ".join(protected_refs)))
+    return table_refs
+
+
 @app.route("/db-admin/download", methods=["GET"])
 @login_required
 def db_admin_download():
@@ -123,48 +186,67 @@ def db_admin_page():
                 flash(str(error), "error")
 
         elif action == "delete_database":
-            database_name = str(request.form.get("database_name", "")).strip()
             try:
-                deleted_database = drop_database(database_name)
-                flash(f"Database `{deleted_database}` deleted.", "success")
+                database_names = _ensure_bulk_database_selection(_selected_database_names(request.form), "Delete")
+                deleted_databases = [drop_database(database_name) for database_name in database_names]
+                flash("Deleted database{}: {}.".format(
+                    "" if len(deleted_databases) == 1 else "s",
+                    ", ".join(f"`{database_name}`" for database_name in deleted_databases),
+                ), "success")
                 return redirect(url_for("db_admin_page", tab="db"))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
 
         elif action == "load_database_heatwave":
-            database_name = str(request.form.get("database_name", "")).strip()
             try:
-                loaded_database = load_database_to_heatwave(database_name)
+                database_names = _ensure_bulk_database_selection(_selected_database_names(request.form), "Load to HeatWave")
+                loaded_databases = [load_database_to_heatwave(database_name) for database_name in database_names]
+                datasets = []
+                for loaded_database in loaded_databases:
+                    datasets.extend(loaded_database["datasets"])
                 _queue_db_admin_modal_result(
                     "HeatWave Load Result",
-                    loaded_database["datasets"],
+                    datasets,
                 )
-                flash(f"HeatWave load requested for database `{loaded_database['database_name']}`.", "success")
-                return redirect(url_for("db_admin_page", tab="db", database=loaded_database["database_name"]))
+                flash("HeatWave load requested for database{}: {}.".format(
+                    "" if len(loaded_databases) == 1 else "s",
+                    ", ".join(f"`{row['database_name']}`" for row in loaded_databases),
+                ), "success")
+                return redirect(url_for("db_admin_page", tab="db", database=loaded_databases[0]["database_name"]))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
 
         elif action == "unload_database_heatwave":
-            database_name = str(request.form.get("database_name", "")).strip()
             try:
-                unloaded_database = unload_database_from_heatwave(database_name)
+                database_names = _ensure_bulk_database_selection(_selected_database_names(request.form), "Unload from HeatWave")
+                unloaded_databases = [unload_database_from_heatwave(database_name) for database_name in database_names]
+                datasets = []
+                for unloaded_database in unloaded_databases:
+                    datasets.extend(unloaded_database["datasets"])
                 _queue_db_admin_modal_result(
                     "HeatWave Unload Result",
-                    unloaded_database["datasets"],
+                    datasets,
                 )
-                flash(f"HeatWave unload requested for database `{unloaded_database['database_name']}`.", "success")
-                return redirect(url_for("db_admin_page", tab="db", database=unloaded_database["database_name"]))
+                flash("HeatWave unload requested for database{}: {}.".format(
+                    "" if len(unloaded_databases) == 1 else "s",
+                    ", ".join(f"`{row['database_name']}`" for row in unloaded_databases),
+                ), "success")
+                return redirect(url_for("db_admin_page", tab="db", database=unloaded_databases[0]["database_name"]))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
 
         elif action == "unload_heatwave_hw_tables":
-            table_name = str(request.form.get("table_name", "")).strip()
             try:
-                if not requested_database:
-                    raise ValueError("Choose a database before unloading a table from HeatWave.")
-                unloaded_table = unload_table_from_heatwave(requested_database, table_name)
-                flash(f"HeatWave unload requested for `{requested_database}.{unloaded_table}`.", "success")
-                return redirect(url_for("db_admin_page", tab="hw-tables", database=requested_database))
+                table_refs = _ensure_heatwave_table_selection(_selected_heatwave_table_refs(request.form))
+                unloaded_refs = []
+                for schema_name, table_name in table_refs:
+                    unloaded_table = unload_table_from_heatwave(schema_name, table_name)
+                    unloaded_refs.append(f"{schema_name}.{unloaded_table}")
+                flash("HeatWave unload requested for table{}: {}.".format(
+                    "" if len(unloaded_refs) == 1 else "s",
+                    ", ".join(f"`{table_ref}`" for table_ref in unloaded_refs),
+                ), "success")
+                return redirect(url_for("db_admin_page", tab="hw-tables", database=table_refs[0][0]))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
                 active_tab = "hw-tables"
@@ -247,37 +329,66 @@ def db_admin_page():
                 active_tab = "table"
 
         elif action == "delete_table":
-            table_name = str(request.form.get("table_name", "")).strip()
             try:
-                if not requested_database:
-                    raise ValueError("Choose a database before deleting a table.")
-                deleted_table = drop_table(requested_database, table_name)
-                flash(f"Table `{deleted_table}` deleted from `{requested_database}`.", "success")
+                table_names = _ensure_bulk_table_selection(
+                    requested_database,
+                    _selected_table_names(request.form),
+                    "Delete",
+                )
+                deleted_tables = [drop_table(requested_database, table_name) for table_name in table_names]
+                flash("Deleted table{} from `{}`: {}.".format(
+                    "" if len(deleted_tables) == 1 else "s",
+                    requested_database,
+                    ", ".join(f"`{table_name}`" for table_name in deleted_tables),
+                ), "success")
                 return redirect(url_for("db_admin_page", tab="table", database=requested_database))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
                 active_tab = "table"
 
         elif action == "load_heatwave":
-            table_name = str(request.form.get("table_name", "")).strip()
-            current_secondary_engine = str(request.form.get("secondary_engine", "")).strip()
             try:
-                if not requested_database:
-                    raise ValueError("Choose a database before loading a table into HeatWave.")
-                loaded_table = load_table_to_heatwave(requested_database, table_name, current_secondary_engine)
-                flash(f"HeatWave load requested for `{requested_database}.{loaded_table}`.", "success")
+                table_names = _ensure_bulk_table_selection(
+                    requested_database,
+                    _selected_table_names(request.form),
+                    "Load HeatWave",
+                )
+                table_inventory = fetch_tables_for_database(requested_database)
+                secondary_engine_by_table = {
+                    row["table_name"]: str(row.get("secondary_engine", "") or "").strip()
+                    for row in table_inventory
+                }
+                loaded_tables = [
+                    load_table_to_heatwave(
+                        requested_database,
+                        table_name,
+                        secondary_engine_by_table.get(table_name, ""),
+                    )
+                    for table_name in table_names
+                ]
+                flash("HeatWave load requested for table{} in `{}`: {}.".format(
+                    "" if len(loaded_tables) == 1 else "s",
+                    requested_database,
+                    ", ".join(f"`{table_name}`" for table_name in loaded_tables),
+                ), "success")
                 return redirect(url_for("db_admin_page", tab="table", database=requested_database))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
                 active_tab = "table"
 
         elif action == "unload_heatwave":
-            table_name = str(request.form.get("table_name", "")).strip()
             try:
-                if not requested_database:
-                    raise ValueError("Choose a database before unloading a table from HeatWave.")
-                unloaded_table = unload_table_from_heatwave(requested_database, table_name)
-                flash(f"HeatWave unload requested for `{requested_database}.{unloaded_table}`.", "success")
+                table_names = _ensure_bulk_table_selection(
+                    requested_database,
+                    _selected_table_names(request.form),
+                    "Unload HeatWave",
+                )
+                unloaded_tables = [unload_table_from_heatwave(requested_database, table_name) for table_name in table_names]
+                flash("HeatWave unload requested for table{} in `{}`: {}.".format(
+                    "" if len(unloaded_tables) == 1 else "s",
+                    requested_database,
+                    ", ".join(f"`{table_name}`" for table_name in unloaded_tables),
+                ), "success")
                 return redirect(url_for("db_admin_page", tab="table", database=requested_database))
             except (ValueError, mysql.connector.Error) as error:
                 flash(str(error), "error")
