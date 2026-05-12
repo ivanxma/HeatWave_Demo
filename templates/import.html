@@ -21,17 +21,6 @@
           {% endfor %}
         </select>
       </label>
-      <label class="inline-field">
-        Table
-        <select name="table" id="import-table-select">
-          <option value="">Choose a table</option>
-          {% for table_name in available_tables %}
-          <option value="{{ table_name }}" {% if table_name == selected_table %}selected{% endif %}>
-            {{ table_name }}
-          </option>
-          {% endfor %}
-        </select>
-      </label>
     </form>
   </article>
 
@@ -41,7 +30,6 @@
     <p class="helper-text">The selected database is protected. Choose a non-system database before importing.</p>
     {% else %}
     <form method="post" enctype="multipart/form-data" class="form-grid" id="import-file-form">
-      <input type="hidden" name="table" value="{{ selected_table }}">
       <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
 
       <label>
@@ -57,7 +45,6 @@
           type="text"
           value="{{ import_form.table_name }}"
           placeholder="target_table"
-          data-selected-table="{{ selected_table }}"
         >
       </label>
 
@@ -93,15 +80,27 @@
     <p class="helper-text">
       Showing {{ import_preview.preview_count }} of {{ import_preview.row_count }} rows from <code>{{ import_preview.filename }}</code>.
     </p>
+
+    <div class="form-actions import-preview-actions">
+      <button class="button primary" type="submit" form="import-commit-form" name="import_action" value="import_file">Import</button>
+    </div>
+
+    <div class="tab-strip result-tab-strip" role="tablist" aria-label="Import output tabs">
+      <button class="tab-link result-tab-link active" type="button" data-result-group="import-output" data-result-tab="definition" aria-selected="true">Column Definition</button>
+      <button class="tab-link result-tab-link" type="button" data-result-group="import-output" data-result-tab="rows" aria-selected="false">Row Preview</button>
+    </div>
+
     <form
       method="post"
       id="import-commit-form"
+      class="result-tab-panel import-result-tab-panel"
+      data-result-group-panel="import-output"
+      data-result-panel="definition"
       {% if existing_target and not import_form.create_new_table %}
       onsubmit="return confirm('Import into existing table {{ import_form.database_name }}.{{ import_form.table_name }}?');"
       {% endif %}
     >
       <input type="hidden" name="database_name" value="{{ import_form.database_name }}">
-      <input type="hidden" name="table" value="{{ selected_table }}">
       <input type="hidden" name="table_name" value="{{ import_form.table_name }}">
       <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
       {% if import_form.overwrite_existing %}
@@ -169,38 +168,42 @@
       </div>
     </form>
 
-    <div class="form-actions import-preview-actions">
-      <button class="button primary" type="submit" form="import-commit-form" name="import_action" value="import_file">Import</button>
-    </div>
-    <div class="table-wrap">
-      <table class="admin-table import-preview-table">
-        <thead>
-          <tr>
-            {% for column in import_preview.columns %}
-            <th>{{ column }}</th>
+    <section
+      class="result-tab-panel import-result-tab-panel"
+      data-result-group-panel="import-output"
+      data-result-panel="rows"
+      hidden
+    >
+      <div class="table-wrap">
+        <table class="admin-table import-preview-table">
+          <thead>
+            <tr>
+              {% for column in import_preview.columns %}
+              <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in import_preview.rows %}
+            <tr>
+              {% for value in row %}
+              <td class="import-preview-cell">
+                <button
+                  class="report-cell-button import-preview-button"
+                  type="button"
+                  data-report-value="{{ value if value is not none else '' }}"
+                  data-report-column="{{ import_preview.columns[loop.index0] }}"
+                >
+                  {{ value if value is not none and value != '' else "-" }}
+                </button>
+              </td>
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in import_preview.rows %}
-          <tr>
-            {% for value in row %}
-            <td class="import-preview-cell">
-              <button
-                class="report-cell-button import-preview-button"
-                type="button"
-                data-report-value="{{ value if value is not none else '' }}"
-                data-report-column="{{ import_preview.columns[loop.index0] }}"
-              >
-                {{ value if value is not none and value != '' else "-" }}
-              </button>
-            </td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </article>
   {% endif %}
 </section>
@@ -222,30 +225,38 @@
   (() => {
     const selectionForm = document.getElementById("import-selection-form");
     const databaseSelect = document.getElementById("import-database-select");
-    const tableSelect = document.getElementById("import-table-select");
-    const targetTableInput = document.getElementById("import-target-table-name");
-    if (!selectionForm || !databaseSelect || !tableSelect) {
+    if (!selectionForm || !databaseSelect) {
       return;
     }
 
     databaseSelect.addEventListener("change", () => {
-      tableSelect.value = "";
       selectionForm.submit();
     });
+  })();
 
-    tableSelect.addEventListener("change", () => {
-      if (
-        targetTableInput &&
-        (!targetTableInput.value.trim() || targetTableInput.value.trim() === targetTableInput.dataset.selectedTable)
-      ) {
-        targetTableInput.value = tableSelect.value;
-      }
-      selectionForm.submit();
-    });
-
-    if (targetTableInput) {
-      targetTableInput.dataset.selectedTable = targetTableInput.dataset.selectedTable || "";
+  (() => {
+    const resultTabButtons = Array.from(document.querySelectorAll("[data-result-group][data-result-tab]"));
+    const resultPanels = Array.from(document.querySelectorAll("[data-result-group-panel][data-result-panel]"));
+    if (!resultTabButtons.length || !resultPanels.length) {
+      return;
     }
+
+    const activateResultTab = (groupName, tabId) => {
+      resultTabButtons.forEach((button) => {
+        const isActive = button.dataset.resultGroup === groupName && button.dataset.resultTab === tabId;
+        button.classList.toggle("active", isActive);
+        button.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      resultPanels.forEach((panel) => {
+        panel.hidden = !(panel.dataset.resultGroupPanel === groupName && panel.dataset.resultPanel === tabId);
+      });
+    };
+
+    resultTabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activateResultTab(button.dataset.resultGroup, button.dataset.resultTab);
+      });
+    });
   })();
 
   (() => {

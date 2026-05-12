@@ -21,7 +21,6 @@ from app_context import (
 @login_required
 def import_page():
     selected_database = str(request.values.get("database", "")).strip()
-    selected_table = str(request.values.get("table", "")).strip()
     target_table_name = str(request.values.get("table_name", "")).strip()
     import_form = _default_import_form()
     import_summary = None
@@ -31,11 +30,8 @@ def import_page():
         import_form["database_name"] = selected_database
     if target_table_name:
         import_form["table_name"] = target_table_name
-    elif selected_table:
-        import_form["table_name"] = selected_table
 
     import_tree = []
-    available_tables = []
     existing_target = False
     selected_database_is_system = False
 
@@ -54,18 +50,9 @@ def import_page():
 
     if selected_database not in database_names:
         selected_database = ""
-        selected_table = ""
-
-    selected_database_entry = next((row for row in import_tree if row["database_name"] == selected_database), None)
-    available_tables = list(selected_database_entry["tables"]) if selected_database_entry else []
-    if selected_table not in available_tables:
-        selected_table = ""
-    if selected_table and not import_form["table_name"]:
-        import_form["table_name"] = selected_table
 
     if request.method == "POST":
         action = str(request.form.get("import_action", "load_preview")).strip()
-        selected_table = str(request.form.get("table", selected_table)).strip()
         import_form = {
             "database_name": str(request.form.get("database_name", "")).strip(),
             "table_name": str(request.form.get("table_name", "")).strip(),
@@ -79,9 +66,6 @@ def import_page():
         import_form["add_invisible_primary_key"] = import_form["primary_key_mode"] == "my_row_id"
         selected_database = import_form["database_name"]
         target_table_name = import_form["table_name"]
-        if selected_table and not target_table_name:
-            import_form["table_name"] = selected_table
-            target_table_name = selected_table
         try:
             if not selected_database:
                 raise ValueError("Choose a database before importing.")
@@ -121,7 +105,13 @@ def import_page():
                     "Imported {row_count} rows from `{filename}` into `{database_name}.{table_name}`.".format(**import_summary),
                     "success",
                 )
-                return redirect(url_for("import_page", database=import_summary["database_name"], table=import_summary["table_name"]))
+                return redirect(
+                    url_for(
+                        "import_page",
+                        database=import_summary["database_name"],
+                        table_name=import_summary["table_name"],
+                    )
+                )
             else:
                 raise ValueError("Unsupported import action.")
         except (ValueError, mysql.connector.Error) as error:
@@ -141,8 +131,6 @@ def import_page():
         page_title="Import",
         import_tree=import_tree,
         selected_database=selected_database,
-        selected_table=selected_table,
-        available_tables=available_tables,
         selected_database_is_system=selected_database_is_system,
         existing_target=existing_target,
         import_form=import_form,
