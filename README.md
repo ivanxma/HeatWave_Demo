@@ -396,8 +396,12 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 ### Admin Import
 
 - `Admin > Import` uploads a CSV file, stores it temporarily for preview, and shows detected column names before inserting data.
+- The database selector can target an existing schema or switch to `New Schema` mode, which enables an editable schema-name field and creates that schema during import.
+- If the table name is left blank, loading the preview defaults it from the CSV filename without the `.csv` suffix.
 - The preview displays inferred MySQL column definitions based on the CSV header row and sample values.
 - When the target table does not already exist, the import can create it from the inferred definition.
 - Primary-key handling is selected with radio buttons: generated invisible `my_row_id`, selected CSV column or columns, or no primary key.
 - If CSV columns are selected as the primary key, the import validates that those columns exist and that imported key values are non-empty and unique before creating the table.
-- When importing into an existing table, the CSV headers must match existing table columns. Primary-key options apply only when the import creates a new table.
+- The preview output uses tabs for column definition and row preview.
+- The import can load the full CSV or only the first 1000 rows.
+- When importing into an existing table, the CSV headers must match existing table columns and the user must confirm replacement before the table is truncated. Primary-key options apply only when the import creates a new table.

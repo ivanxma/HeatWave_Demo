@@ -1360,6 +1360,11 @@ def _sanitize_import_column_name(value, index, seen_names):
     return _validate_identifier(candidate, "Column name")
 
 
+def _default_import_table_name_from_filename(filename):
+    stem = Path(str(filename or "").strip()).stem
+    return _sanitize_import_column_name(stem, 1, set())
+
+
 def _normalize_import_cell(value):
     if value is None:
         return None
@@ -1443,10 +1448,8 @@ def _load_import_rows(file_storage):
     extension = Path(filename).suffix.lower()
     if extension == ".csv":
         rows = _read_csv_import(file_storage)
-    elif extension in {".xlsx", ".xlsm", ".xltx", ".xltm"}:
-        rows = _read_excel_import(file_storage)
     else:
-        raise ValueError("Choose a CSV or Excel (.xlsx/.xlsm) file to import.")
+        raise ValueError("Choose a CSV file to import.")
     return _normalize_import_dataset(rows, filename)
 
 
@@ -1457,8 +1460,8 @@ def _ensure_import_preview_dir():
 def _save_import_preview_file(file_storage):
     filename = str(file_storage.filename or "").strip()
     extension = Path(filename).suffix.lower()
-    if extension not in {".csv", ".xlsx", ".xlsm", ".xltx", ".xltm"}:
-        raise ValueError("Choose a CSV or Excel (.xlsx/.xlsm) file to import.")
+    if extension != ".csv":
+        raise ValueError("Choose a CSV file to import.")
     _ensure_import_preview_dir()
     token = secrets.token_hex(16)
     target_path = IMPORT_PREVIEW_DIR / f"{token}{extension}"
@@ -1484,8 +1487,6 @@ def _load_import_rows_from_path(token):
     extension = file_path.suffix.lower()
     if extension == ".csv":
         rows = _read_csv_import_path(file_path)
-    elif extension in {".xlsx", ".xlsm", ".xltx", ".xltm"}:
-        rows = _read_excel_import_path(file_path)
     else:
         raise ValueError("The loaded import preview is invalid or expired.")
     return _normalize_import_dataset(rows, file_path.name)
@@ -1594,6 +1595,13 @@ def _apply_import_primary_key_definition(columns, headers, rows, primary_key_mod
     return False
 
 
+def _normalize_import_row_limit(value):
+    normalized = str(value or "full").strip().lower()
+    if normalized not in {"full", "1000"}:
+        raise ValueError("Choose a valid import row option.")
+    return normalized
+
+
 def import_file_to_table(
     schema_name,
     table_name,
@@ -1601,18 +1609,26 @@ def import_file_to_table(
     *,
     overwrite_existing=False,
     create_new_table=False,
+    create_schema=False,
     add_invisible_primary_key=False,
     primary_key_mode=None,
     primary_key_columns=None,
+    import_row_limit="full",
 ):
     database_name = _validate_identifier(schema_name, "Database name")
     normalized_table_name = _validate_identifier(table_name, "Table name")
-    if not _database_exists(database_name):
-        raise ValueError(f"Database `{database_name}` does not exist.")
+    row_limit = _normalize_import_row_limit(import_row_limit)
     if _is_system_database(database_name):
         raise ValueError("System databases cannot be modified.")
+    database_exists = _database_exists(database_name)
+    if not database_exists and create_schema:
+        create_database(database_name)
+        database_exists = True
+    if not database_exists:
+        raise ValueError(f"Database `{database_name}` does not exist.")
     headers = list(import_payload.get("headers") or [])
-    rows = list(import_payload.get("rows") or [])
+    all_rows = list(import_payload.get("rows") or [])
+    rows = all_rows[:1000] if row_limit == "1000" else all_rows
     if not headers:
         raise ValueError("The import file must include a header row.")
 
@@ -1682,6 +1698,8 @@ def import_file_to_table(
         "created_table": not table_exists,
         "overwrite_existing": bool(table_exists and overwrite_existing),
         "row_count": len(rows),
+        "source_row_count": len(all_rows),
+        "import_row_limit": row_limit,
         "column_count": len(headers),
         "filename": import_payload.get("filename", ""),
     }
@@ -1845,12 +1863,15 @@ def _default_column_form():
 def _default_import_form():
     return {
         "database_name": "",
+        "new_schema": False,
+        "new_database_name": "",
         "table_name": "",
         "overwrite_existing": False,
         "create_new_table": False,
         "add_invisible_primary_key": False,
         "primary_key_mode": "my_row_id",
         "primary_key_columns": [],
+        "import_row_limit": "full",
         "preview_token": "",
     }
 
