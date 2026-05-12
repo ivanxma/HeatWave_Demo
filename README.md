@@ -304,8 +304,8 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 - `Admin > Connection Profile` and the login page let you store optional timeout values per saved profile.
 - Supported values are connector-side `connection_timeout` plus session values `net_read_timeout`, `net_write_timeout`, `max_execution_time`, `wait_timeout`, and `interactive_timeout`.
 - Leave `connection_timeout` blank to use the app-level safety default of 5 seconds. Leave the session timeout fields blank to use the MySQL or connector defaults for those settings.
-- The top-right header shows the compact summary as `Timeout : connection/read/write/max_execution`.
-- Clicking the timeout summary opens a popup that shows the current session timeout values by variable name and lets you change them for the active saved profile.
+- The top-right user settings icon opens a dropdown with version, user, profile, connection, timeout summary, and logout.
+- Clicking the timeout summary in the user settings dropdown opens a popup that shows the current session timeout values by variable name and lets you change them for the active saved profile.
 - Updated profile values are applied to each new MySQL connection opened by the app.
 
 ### HTTPS Listener Timeouts
@@ -387,13 +387,16 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 ### DB Admin
 
 - The old `HeatWave Performance Query`, `HeatWave ML Query`, and `HW Table Load Recovery` tabs are consolidated into one `Monitoring` tab.
-- The `Monitoring` tab includes 3 buttons to switch between those views.
-- The selected monitoring button is highlighted in dark red. The inactive buttons keep the red gradient style.
-- The `Monitoring` toolbar includes a `Refresh` button and an `Auto Refresh` dropdown with `2s`, `5s`, `30s`, `60s`, and `none`.
+- The `Monitoring` tab keeps `Auto Refresh` and `Refresh` above a nested TabView for `HeatWave Performance Query`, `HeatWave ML Query`, and `HW Table Load Recovery`.
 - When an auto-refresh interval is selected, the monitoring view refreshes automatically using the selected interval.
 - The `HeatWave ML Query` monitoring view includes a `Current ML running connection only` filter.
 - When that filter is enabled, the main query appends `connection_id = (select id from performance_schema.processlist where info like 'SET rapid_ml_operation%')`.
 - When the filter is enabled, the page also shows a second detail table for the latest current-running ML query, including the full `QEXEC_TEXT`.
+- The `DB`, `Table`, and `HW Tables` views use row checkboxes plus compact icon actions instead of per-row text buttons.
+- The `DB` view supports bulk Load to HeatWave, Unload from HeatWave, and Delete for selected non-system schemas. Database names link to the Table view.
+- The `Table` view supports bulk Load HeatWave, Unload HeatWave, and Delete for selected tables. Table names link to Browse.
+- The `HW Tables` view supports bulk Unload for selected unloadable HeatWave tables.
+- System schemas and their tables are protected from destructive or HeatWave load/unload actions.
 
 ### Admin Import
 

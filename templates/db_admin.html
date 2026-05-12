@@ -26,7 +26,7 @@
     <section class="panel-stack">
       <article class="panel">
         <h3>Create Database</h3>
-        <form method="post" class="form-grid">
+        <form method="post" class="form-grid create-database-form">
           <input type="hidden" name="tab" value="db">
           <input type="hidden" name="db_admin_action" value="create_database">
           <label>
@@ -46,37 +46,51 @@
           <input type="hidden" name="tab" value="db">
           <div class="panel-actions db-admin-selection-actions">
             <button
-              class="button secondary"
+              class="icon-button db-admin-action-button"
               type="submit"
               name="db_admin_action"
               value="load_database_heatwave"
               data-db-bulk-action
               data-confirm-template="Load selected databases to HeatWave?"
+              aria-label="Load selected databases to HeatWave"
+              title="Load to HeatWave"
               disabled
             >
-              Load to HeatWave
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 19V8m0 0-4 4m4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 18H5a3 3 0 0 1-.7-5.92A5 5 0 0 1 14 9.5a4 4 0 0 1 4 4.5 3 3 0 0 1-1 5.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
             <button
-              class="button secondary"
+              class="icon-button db-admin-action-button"
               type="submit"
               name="db_admin_action"
               value="unload_database_heatwave"
               data-db-bulk-action
               data-confirm-template="Unload selected databases from HeatWave?"
+              aria-label="Unload selected databases from HeatWave"
+              title="Unload from HeatWave"
               disabled
             >
-              Unload from HeatWave
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 8v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 18H5a3 3 0 0 1-.7-5.92A5 5 0 0 1 14 9.5a4 4 0 0 1 4 4.5 3 3 0 0 1-1 5.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
             <button
-              class="button secondary danger"
+              class="icon-button db-admin-action-button danger"
               type="submit"
               name="db_admin_action"
               value="delete_database"
               data-db-bulk-action
               data-confirm-template="Delete selected databases? This will remove all tables in them."
+              aria-label="Delete selected databases"
+              title="Delete"
               disabled
             >
-              Delete
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M10 11v6m4-6v6M9 7V5h6v2m-8 0 1 14h8l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
           </div>
           <div class="table-wrap">
@@ -169,40 +183,54 @@
           <input type="hidden" name="database" value="{{ selected_database }}">
           <div class="panel-actions db-admin-selection-actions">
             <button
-              class="button secondary"
+              class="icon-button db-admin-action-button"
               type="submit"
               name="db_admin_action"
               value="load_heatwave"
               data-table-bulk-action
               data-table-action-kind="load"
               data-confirm-template="Load selected tables to HeatWave?"
+              aria-label="Load selected tables to HeatWave"
+              title="Load HeatWave"
               disabled
             >
-              Load HeatWave
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 19V8m0 0-4 4m4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 18H5a3 3 0 0 1-.7-5.92A5 5 0 0 1 14 9.5a4 4 0 0 1 4 4.5 3 3 0 0 1-1 5.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
             <button
-              class="button secondary"
+              class="icon-button db-admin-action-button"
               type="submit"
               name="db_admin_action"
               value="unload_heatwave"
               data-table-bulk-action
               data-table-action-kind="unload"
               data-confirm-template="Unload selected tables from HeatWave?"
+              aria-label="Unload selected tables from HeatWave"
+              title="Unload HeatWave"
               disabled
             >
-              Unload HeatWave
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 8v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 18H5a3 3 0 0 1-.7-5.92A5 5 0 0 1 14 9.5a4 4 0 0 1 4 4.5 3 3 0 0 1-1 5.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
             <button
-              class="button secondary danger"
+              class="icon-button db-admin-action-button danger"
               type="submit"
               name="db_admin_action"
               value="delete_table"
               data-table-bulk-action
               data-table-action-kind="delete"
               data-confirm-template="Delete selected tables?"
+              aria-label="Delete selected tables"
+              title="Delete"
               disabled
             >
-              Delete
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16M10 11v6m4-6v6M9 7V5h6v2m-8 0 1 14h8l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </button>
           </div>
           <div class="table-wrap">
@@ -375,13 +403,18 @@
         <input type="hidden" name="db_admin_action" value="unload_heatwave_hw_tables">
         <div class="panel-actions db-admin-selection-actions">
           <button
-            class="button secondary"
+            class="icon-button db-admin-action-button"
             type="submit"
             data-hw-table-bulk-action
             data-confirm-template="Unload selected HeatWave tables?"
+            aria-label="Unload selected HeatWave tables"
+            title="Unload"
             disabled
           >
-            Unload
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 8v11m0 0 4-4m-4 4-4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6 18H5a3 3 0 0 1-.7-5.92A5 5 0 0 1 14 9.5a4 4 0 0 1 4 4.5 3 3 0 0 1-1 5.83" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
         </div>
         <div class="table-wrap">

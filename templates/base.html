@@ -15,34 +15,58 @@
           <h1><a href="{{ url_for('home') }}" class="topbar-home-link">{{ app_title }}</a></h1>
         </div>
         <div class="topbar-meta">
-          <div class="topbar-version-block">
-            <span class="meta-label">Version</span>
-            <strong>
-              {{ app_version or "-" }}
-              {% if app_version_status.update_available %}
-              <span class="version-update-available">→ {{ app_version_status.repo_version }}</span>
-              {% endif %}
-            </strong>
+          <div class="user-settings-menu" id="user-settings-menu">
+            <button
+              class="icon-button user-settings-toggle"
+              type="button"
+              id="user-settings-toggle"
+              aria-label="User settings"
+              aria-expanded="false"
+              aria-controls="user-settings-dropdown"
+              title="User settings"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 21a8 8 0 0 0-16 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="12" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <div class="user-settings-dropdown" id="user-settings-dropdown" hidden>
+              <dl class="user-settings-list">
+                <div>
+                  <dt>Version</dt>
+                  <dd>
+                    {{ app_version or "-" }}
+                    {% if app_version_status.update_available %}
+                    <span class="version-update-available">→ {{ app_version_status.repo_version }}</span>
+                    {% endif %}
+                  </dd>
+                </div>
+                <div>
+                  <dt>User</dt>
+                  <dd>{{ current_user or "-" }}</dd>
+                </div>
+                <div>
+                  <dt>Profile</dt>
+                  <dd>{{ current_profile_name or "-" }}</dd>
+                </div>
+                <div>
+                  <dt>Connection</dt>
+                  <dd>{{ connection_summary }}</dd>
+                </div>
+                <div>
+                  <dt>Timeout</dt>
+                  <dd>
+                    <button class="topbar-timeout-block" type="button" id="connection-timeout-open">
+                      <span class="topbar-timeout-summary">{{ connection_timeout_summary }}</span>
+                    </button>
+                  </dd>
+                </div>
+              </dl>
+              <form method="post" action="{{ url_for('logout') }}" class="user-settings-logout-form">
+                <button class="button secondary" type="submit">Logout</button>
+              </form>
+            </div>
           </div>
-          <div>
-            <span class="meta-label">User</span>
-            <strong>{{ current_user or "-" }}</strong>
-          </div>
-          <div>
-            <span class="meta-label">Profile</span>
-            <strong>{{ current_profile_name or "-" }}</strong>
-          </div>
-          <div>
-            <span class="meta-label">Connection</span>
-            <strong>{{ connection_summary }}</strong>
-          </div>
-          <button class="topbar-timeout-block" type="button" id="connection-timeout-open">
-            <span class="meta-label">Timeout</span>
-            <strong class="topbar-timeout-summary">Timeout : {{ connection_timeout_summary }}</strong>
-          </button>
-          <form method="post" action="{{ url_for('logout') }}">
-            <button class="button secondary" type="submit">Logout</button>
-          </form>
         </div>
       </header>
 
@@ -266,6 +290,39 @@
       })();
 
       (() => {
+        const menu = document.getElementById("user-settings-menu");
+        const button = document.getElementById("user-settings-toggle");
+        const dropdown = document.getElementById("user-settings-dropdown");
+        if (!menu || !button || !dropdown) {
+          return;
+        }
+
+        const closeDropdown = () => {
+          dropdown.hidden = true;
+          button.setAttribute("aria-expanded", "false");
+        };
+
+        const toggleDropdown = () => {
+          const willOpen = dropdown.hidden;
+          dropdown.hidden = !willOpen;
+          button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+        };
+
+        button.addEventListener("click", toggleDropdown);
+        document.addEventListener("click", (event) => {
+          if (!menu.contains(event.target)) {
+            closeDropdown();
+          }
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !dropdown.hidden) {
+            closeDropdown();
+            button.focus();
+          }
+        });
+      })();
+
+      (() => {
         const modal = document.getElementById("connection-timeout-modal");
         const openButton = document.getElementById("connection-timeout-open");
         const closeButton = document.getElementById("connection-timeout-close");
@@ -279,6 +336,12 @@
 
         openButton.addEventListener("click", () => {
           modal.hidden = false;
+          const userSettingsDropdown = document.getElementById("user-settings-dropdown");
+          const userSettingsToggle = document.getElementById("user-settings-toggle");
+          if (userSettingsDropdown && userSettingsToggle) {
+            userSettingsDropdown.hidden = true;
+            userSettingsToggle.setAttribute("aria-expanded", "false");
+          }
         });
         closeButton.addEventListener("click", closeModal);
         modal.addEventListener("click", (event) => {
