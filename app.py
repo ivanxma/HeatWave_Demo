@@ -187,6 +187,17 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 sys.modules.setdefault("app_context", sys.modules[__name__])
 _CONNECTION_CACHE = {}
 _CONNECTION_CACHE_LOCK = threading.RLock()
+_SESSION_CREDENTIALS = {}
+_SESSION_CREDENTIALS_LOCK = threading.RLock()
+
+
+@app.after_request
+def add_no_store_headers(response):
+    if session.get("logged_in") or request.endpoint in {"login", "save_profile_route"}:
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 def ensure_profile_store():
@@ -400,8 +411,8 @@ def clear_login_state(keep_profile=True):
     clear_cached_mysql_connections_for_session()
     profile = get_session_profile() if keep_profile else None
     session["logged_in"] = False
-    session["db_user"] = ""
-    session["db_password"] = ""
+    session.pop("db_user", None)
+    session.pop("db_password", None)
     session.pop("connection_cache_id", None)
     session.pop("llm_model_cache", None)
     if keep_profile and profile:
@@ -415,6 +426,32 @@ def clear_login_state(keep_profile=True):
 def start_connection_cache_session():
     clear_cached_mysql_connections_for_session()
     session["connection_cache_id"] = secrets.token_urlsafe(18)
+
+
+def set_session_credentials(user, password):
+    cache_id = session.get("connection_cache_id")
+    if not cache_id:
+        cache_id = secrets.token_urlsafe(18)
+        session["connection_cache_id"] = cache_id
+    with _SESSION_CREDENTIALS_LOCK:
+        _SESSION_CREDENTIALS[cache_id] = {
+            "user": str(user or "").strip(),
+            "password": str(password or ""),
+            "created_at": time.time(),
+        }
+
+
+def get_session_credentials():
+    cache_id = session.get("connection_cache_id")
+    if not cache_id:
+        return {}
+    with _SESSION_CREDENTIALS_LOCK:
+        payload = _SESSION_CREDENTIALS.get(cache_id, {})
+    return dict(payload) if isinstance(payload, dict) else {}
+
+
+def get_current_db_user():
+    return str(get_session_credentials().get("user", "") or "").strip()
 
 
 def get_connection_config(
@@ -445,8 +482,9 @@ def get_connection_config(
         config["write_timeout"] = profile["write_timeout"]
     elif fallback_write_timeout is not None:
         config["write_timeout"] = int(fallback_write_timeout)
-    resolved_user = session.get("db_user", "") if user is None else user
-    resolved_password = session.get("db_password", "") if password is None else password
+    credentials = get_session_credentials() if user is None or password is None else {}
+    resolved_user = credentials.get("user", "") if user is None else user
+    resolved_password = credentials.get("password", "") if password is None else password
     if resolved_user:
         config["user"] = resolved_user
     if resolved_password:
@@ -606,6 +644,8 @@ def clear_cached_mysql_connections_for_session():
     cache_id = session.get("connection_cache_id")
     if not cache_id:
         return
+    with _SESSION_CREDENTIALS_LOCK:
+        _SESSION_CREDENTIALS.pop(cache_id, None)
     with _CONNECTION_CACHE_LOCK:
         keys = [key for key in _CONNECTION_CACHE if key[0] == cache_id]
         cached_rows = [_CONNECTION_CACHE.pop(key) for key in keys]
@@ -832,6 +872,11 @@ def login_required(route_handler):
         if not session.get("logged_in"):
             flash("Log in with a saved connection profile first.", "warning")
             return redirect(url_for("login"))
+        credentials = get_session_credentials()
+        if not credentials.get("user") or "password" not in credentials:
+            clear_login_state()
+            flash("Your database login session expired. Please log in again.", "warning")
+            return redirect(url_for("login"))
         return route_handler(*args, **kwargs)
 
     return wrapped
@@ -924,6 +969,11 @@ def enforce_live_database_session():
         return None
     if _is_public_endpoint(request.endpoint):
         return None
+    credentials = get_session_credentials()
+    if not credentials.get("user") or "password" not in credentials:
+        clear_login_state()
+        flash("Your database login session expired. Please log in again.", "warning")
+        return redirect(url_for("login"))
     if _validate_active_session_connection():
         return None
     clear_login_state()
@@ -2724,7 +2774,7 @@ def get_dashboard_server_info():
     info = {
         "connection_endpoint": "{host}:{port}".format(**profile),
         "default_database": profile["database"] or "-",
-        "user": session.get("db_user", "") or "-",
+        "user": get_current_db_user() or "-",
         "server_version": "-",
         "uptime": "-",
         "database_rows": [],
@@ -3468,7 +3518,7 @@ def render_dashboard(template_name, **context):
         app_version=read_app_version(),
         app_version_status=app_version_status,
         nav_groups=build_nav_groups(),
-        current_user=session.get("db_user", ""),
+        current_user=get_current_db_user(),
         current_profile_name=session.get("profile_name", ""),
         connection_summary=get_connection_summary(),
         connection_timeout_summary=get_connection_timeout_summary(connection_timeout_settings),

@@ -288,7 +288,15 @@ If MySQL is restarted and the active session is no longer valid, the next authen
 
 `HeatWave > Askme GenAI` is shown only after all required `askme.config` values are configured. AskME database access uses the current logged-in MySQL connection; it does not use OCI Vault to look up database credentials.
 
-Profiles are stored in `profiles.json`. Only non-secret connection details are stored there. A profile can include SSH tunnel settings: jump host, SSH port, SSH user, and private-key path. Database passwords are entered at login and remain in the current app session only.
+Profiles are stored in `profiles.json`. Only non-secret connection details are stored there. A profile can include SSH tunnel settings: jump host, SSH port, SSH user, and private-key path. Database usernames and passwords are entered at login and are not written to `profiles.json`, rendered HTML, browser storage, or Flask's browser-visible signed session cookie.
+
+### Credential Handling
+
+- The browser-visible session stores only non-secret state such as the selected profile, version-check result, and an opaque `connection_cache_id`.
+- The active database username and password are kept in server-side process memory under that opaque session id and are removed on logout, profile changes, connection reset, or expired login cleanup.
+- Authenticated responses and login/profile posts set `Cache-Control: no-store`, `Pragma: no-cache`, and `Expires: 0` to avoid browser or proxy caching of connection-sensitive pages.
+- The login form disables autocomplete for the database username and password fields and never echoes submitted passwords back into the page.
+- If the server-side credential entry is missing, for example after a process restart or worker change, the next authenticated request clears the login state and redirects to `/login`.
 
 ### Connection Caching
 

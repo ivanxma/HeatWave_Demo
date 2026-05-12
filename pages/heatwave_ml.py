@@ -14,6 +14,7 @@ from app_context import (
     app,
     close_mysql_connection,
     get_connection_config,
+    get_current_db_user,
     get_generation_models,
     login_required,
     mysql_connection,
@@ -328,7 +329,7 @@ def _fetch_named_table(schema_name, table_name):
 
 
 def _ml_schema_name():
-    user_name = str(session.get("db_user", "")).strip()
+    user_name = get_current_db_user()
     return f"ML_SCHEMA_{user_name}" if user_name else ""
 
 
@@ -1207,5 +1208,5 @@ def heatwave_ml_page():
         ml_score_call_text_default=IRIS_ML_SCORE_CALL_TEXT,
         ml_explain_table_call_text_default=IRIS_ML_EXPLAIN_TABLE_CALL_TEXT,
         docs_url=IRIS_DOCS_URL if active_tab == "iris" else NL2ML_DOCS_URL,
-        current_user_name=str(session.get("db_user", "")).strip(),
+        current_user_name=get_current_db_user(),
     )

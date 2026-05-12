@@ -34,7 +34,7 @@
         {% endwith %}
 
         <h2>Login</h2>
-        <form method="post" class="form-grid">
+        <form method="post" class="form-grid" autocomplete="off">
           <label>
             Saved profile
             <select name="profile_name" id="login-profile-select">
@@ -48,11 +48,11 @@
           </label>
           <label>
             Database user
-            <input name="username" type="text" value="">
+            <input name="username" type="text" value="" autocomplete="off" autocapitalize="none" spellcheck="false">
           </label>
           <label>
             Database password
-            <input name="password" type="password" value="">
+            <input name="password" type="password" value="" autocomplete="off">
           </label>
           <div class="form-actions">
             <button class="button primary" type="submit">Login</button>

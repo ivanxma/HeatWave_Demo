@@ -12,6 +12,7 @@ from app_context import (
     normalize_profile,
     redirect_for_profile_update,
     save_profiles,
+    set_session_credentials,
     set_session_profile,
     start_connection_cache_session,
     validate_profile_settings,
@@ -40,8 +41,7 @@ def login():
             ok, message = validate_user(username, password)
             if ok:
                 start_connection_cache_session()
-                session["db_user"] = username
-                session["db_password"] = password
+                set_session_credentials(username, password)
                 session["logged_in"] = True
                 version_status = check_repo_version()
                 session["version_check"] = version_status
