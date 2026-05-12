@@ -1172,6 +1172,7 @@ textarea {
   display: grid;
   gap: 14px;
   margin: 16px 0;
+  min-width: 0;
 }
 
 .import-result-tab-panel {
@@ -1179,6 +1180,8 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 0 8px 8px 8px;
   background: var(--panel);
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .import-definition-panel h4 {
@@ -1190,24 +1193,37 @@ textarea {
 .radio-stack {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .radio-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--panel-strong);
 }
 
+.radio-row input {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.radio-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 .import-primary-key-options {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
 }
 
 .import-row-limit-options {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
 }
 
 .import-column-definition-table th:first-child,
