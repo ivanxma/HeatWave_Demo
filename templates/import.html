@@ -13,12 +13,12 @@
     <form method="post" enctype="multipart/form-data" class="form-grid" id="import-file-form">
       <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
 
-      <div class="import-target-grid">
-        <label class="checkbox-row import-new-schema-toggle">
-          <input name="new_schema" id="import-new-schema-checkbox" type="checkbox" {% if import_form.new_schema %}checked{% endif %}>
-          <span>New Schema</span>
-        </label>
+      <label class="checkbox-field import-new-schema-toggle">
+        <input name="new_schema" id="import-new-schema-checkbox" type="checkbox" {% if import_form.new_schema %}checked{% endif %}>
+        <span>New Schema</span>
+      </label>
 
+      <div class="import-schema-grid">
         <label id="import-existing-schema-field" {% if import_form.new_schema %}hidden{% endif %}>
           Schema
           <select name="database_name" id="import-schema-select" {% if import_form.new_schema %}disabled{% endif %}>
@@ -48,6 +48,13 @@
             {% endfor %}
           </datalist>
         </label>
+      </div>
+
+      <div class="import-file-table-grid">
+        <label>
+          Choose File
+          <input name="import_file" id="import-file-input" type="file" accept=".csv">
+        </label>
 
         <label>
           Import Table Name
@@ -60,12 +67,6 @@
           >
         </label>
       </div>
-
-      <label>
-        Choose File
-        <input name="import_file" id="import-file-input" type="file" accept=".csv">
-      </label>
-
       {% if selected_database_is_system %}
       <p class="helper-text">System databases are protected. Choose a non-system database or create a new schema.</p>
       {% endif %}
