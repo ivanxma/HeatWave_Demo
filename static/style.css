@@ -1152,7 +1152,7 @@ textarea {
 }
 
 .import-schema-grid {
-  grid-template-columns: minmax(220px, 1fr);
+  grid-template-columns: minmax(140px, max-content) minmax(220px, 1fr);
 }
 
 .import-file-table-grid {
@@ -1161,6 +1161,17 @@ textarea {
 
 .import-new-schema-toggle {
   justify-self: start;
+  align-self: end;
+  min-height: 44px;
+}
+
+.import-schema-field,
+.import-schema-control {
+  min-width: 0;
+}
+
+.import-schema-control {
+  display: block;
 }
 
 .import-existing-target-warning {
