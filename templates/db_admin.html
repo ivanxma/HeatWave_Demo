@@ -488,16 +488,31 @@
           {% endif %}
           <div class="monitoring-control-row">
             <input type="hidden" name="monitor_view" value="{{ selected_monitor_view }}">
-            <label class="inline-field monitoring-refresh-field">
-              Auto Refresh
-              <select name="monitor_refresh" id="db-admin-monitor-refresh" data-monitor-refresh-select>
-                <option value="2" {% if selected_monitor_refresh == "2" %}selected{% endif %}>2s</option>
-                <option value="5" {% if selected_monitor_refresh == "5" %}selected{% endif %}>5s</option>
-                <option value="30" {% if selected_monitor_refresh == "30" %}selected{% endif %}>30s</option>
-                <option value="60" {% if selected_monitor_refresh == "60" %}selected{% endif %}>60s</option>
-                <option value="none" {% if selected_monitor_refresh == "none" %}selected{% endif %}>none</option>
-              </select>
-            </label>
+            <fieldset class="monitoring-refresh-options">
+              <legend>Auto Refresh</legend>
+              <div class="monitoring-refresh-radio-row" role="radiogroup" aria-label="Auto refresh interval">
+                <label class="monitoring-refresh-radio">
+                  <input type="radio" name="monitor_refresh" value="none" data-monitor-refresh-radio {% if selected_monitor_refresh == "none" %}checked{% endif %}>
+                  <span>none</span>
+                </label>
+                <label class="monitoring-refresh-radio">
+                  <input type="radio" name="monitor_refresh" value="2" data-monitor-refresh-radio {% if selected_monitor_refresh == "2" %}checked{% endif %}>
+                  <span>2s</span>
+                </label>
+                <label class="monitoring-refresh-radio">
+                  <input type="radio" name="monitor_refresh" value="5" data-monitor-refresh-radio {% if selected_monitor_refresh == "5" %}checked{% endif %}>
+                  <span>5s</span>
+                </label>
+                <label class="monitoring-refresh-radio">
+                  <input type="radio" name="monitor_refresh" value="30" data-monitor-refresh-radio {% if selected_monitor_refresh == "30" %}checked{% endif %}>
+                  <span>30s</span>
+                </label>
+                <label class="monitoring-refresh-radio">
+                  <input type="radio" name="monitor_refresh" value="60" data-monitor-refresh-radio {% if selected_monitor_refresh == "60" %}checked{% endif %}>
+                  <span>60s</span>
+                </label>
+              </div>
+            </fieldset>
             {% if selected_monitor_view == "heatwave-ml-query" %}
             <label class="checkbox-field monitoring-checkbox-field">
               <input
@@ -509,7 +524,6 @@
               <span>Current ML running connection only</span>
             </label>
             {% endif %}
-            <button class="button secondary" type="submit">Refresh</button>
           </div>
         </form>
       </div>
@@ -1427,17 +1441,22 @@
 
   (() => {
     const monitoringForm = document.getElementById("db-admin-monitoring-form");
-    const refreshSelect = document.getElementById("db-admin-monitor-refresh");
-    if (!monitoringForm || !refreshSelect) {
+    const refreshRadios = Array.from(document.querySelectorAll("[data-monitor-refresh-radio]"));
+    if (!monitoringForm || !refreshRadios.length) {
       return;
     }
 
     let refreshTimer = null;
-    const refreshValue = refreshSelect.value;
+    const selectedRefreshRadio = refreshRadios.find((radio) => radio.checked);
+    const refreshValue = selectedRefreshRadio ? selectedRefreshRadio.value : "none";
     const refreshSeconds = refreshValue === "none" ? 0 : Number(refreshValue || 0);
 
-    refreshSelect.addEventListener("change", () => {
-      monitoringForm.submit();
+    refreshRadios.forEach((radio) => {
+      radio.addEventListener("change", () => {
+        if (radio.checked) {
+          monitoringForm.submit();
+        }
+      });
     });
 
     if (refreshSeconds > 0) {

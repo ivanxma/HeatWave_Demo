@@ -453,12 +453,21 @@
 
         const createDownloadMenu = (table, tableIndex) => {
           const wrapper = table.closest(".table-wrap");
-          if (!wrapper || wrapper.previousElementSibling?.classList.contains("table-download-toolbar")) {
+          if (!wrapper) {
+            return;
+          }
+          const previousElement = wrapper.previousElementSibling;
+          const existingActionRow = previousElement?.classList.contains("db-admin-selection-actions")
+            ? previousElement
+            : null;
+          if (previousElement?.classList.contains("table-download-toolbar") || existingActionRow?.querySelector(".table-download-button")) {
             return;
           }
           table.dataset.tableTitle = table.dataset.tableTitle || "heatwave-demo-table-" + (tableIndex + 1);
-          const toolbar = document.createElement("div");
-          toolbar.className = "table-download-toolbar";
+          const toolbar = existingActionRow || document.createElement("div");
+          if (!existingActionRow) {
+            toolbar.className = "table-download-toolbar";
+          }
           const button = document.createElement("button");
           button.className = "icon-button table-download-button";
           button.type = "button";
@@ -487,7 +496,9 @@
             }
           });
           toolbar.append(button, menu);
-          wrapper.parentNode.insertBefore(toolbar, wrapper);
+          if (!existingActionRow) {
+            wrapper.parentNode.insertBefore(toolbar, wrapper);
+          }
         };
 
         const enableResize = (header) => {

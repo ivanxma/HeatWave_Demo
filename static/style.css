@@ -1050,6 +1050,7 @@ textarea {
 }
 
 .db-admin-selection-actions {
+  position: relative;
   flex-wrap: nowrap;
   align-items: center;
 }
@@ -1103,12 +1104,48 @@ textarea {
   color: #fff;
 }
 
-.monitoring-refresh-field {
-  min-width: 140px;
-}
-
 .monitoring-checkbox-field {
   min-height: 44px;
+}
+
+.monitoring-refresh-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.monitoring-refresh-options legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.monitoring-refresh-radio-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.monitoring-refresh-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  cursor: pointer;
+}
+
+.monitoring-refresh-radio input {
+  width: auto;
+  margin: 0;
 }
 
 .inline-field {
