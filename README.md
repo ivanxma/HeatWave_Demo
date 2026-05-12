@@ -154,7 +154,7 @@ sudo journalctl -u heatwave-demo-https.service -f
 
 After login, use `Admin > Update HeatWave_Demo` to refresh the app from its configured git repository. The updater requires a clean worktree, runs `git fetch --all --prune`, runs `git pull --ff-only`, reruns `setup.sh`, and restarts active `heatwave-demo-http.service` or `heatwave-demo-https.service` services when systemd is present.
 
-The local app version is stored in `appver.json` and shown in the top banner after login. Each login checks the repository copy of that same file. If the repository version is newer, the app redirects to `Admin > Update HeatWave_Demo` and shows the available version before the update is started. Set `HEATWAVE_DEMO_VERSION_URL` when the version file should be checked from a custom repository or branch URL. The legacy `heatwave_demo_ver.json` file is kept as a compatibility alias for older deployed versions that still check that path.
+The local app version is stored in `appver.json` and shown in the user settings dropdown after login. Each login checks the repository copy of that same file. If the repository version is newer, the app redirects to `Admin > Update HeatWave_Demo` and shows the available version before the update is started. Set `HEATWAVE_DEMO_VERSION_URL` when the version file should be checked from a custom repository or branch URL. The legacy `heatwave_demo_ver.json` file is kept as a compatibility alias for older deployed versions that still check that path.
 
 For a full service refresh from the web UI, the service user needs passwordless `sudo` for setup and service restart operations. If passwordless `sudo` is unavailable, the updater falls back to `SKIP_PRIVILEGED_SETUP=1`, refreshes the repo and Python environment, and lets systemd recover the service by restarting the current process. Run `./setup.sh` manually later if privileged package, firewall, TLS ownership, or service-unit changes were skipped.
 
@@ -387,7 +387,7 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 ### DB Admin
 
 - The old `HeatWave Performance Query`, `HeatWave ML Query`, and `HW Table Load Recovery` tabs are consolidated into one `Monitoring` tab.
-- The `Monitoring` tab keeps `Auto Refresh` and `Refresh` above a nested TabView for `HeatWave Performance Query`, `HeatWave ML Query`, and `HW Table Load Recovery`.
+- The `Monitoring` tab keeps an `Auto Refresh` radio group above a nested TabView for `HeatWave Performance Query`, `HeatWave ML Query`, and `HW Table Load Recovery`.
 - When an auto-refresh interval is selected, the monitoring view refreshes automatically using the selected interval.
 - The `HeatWave ML Query` monitoring view includes a `Current ML running connection only` filter.
 - When that filter is enabled, the main query appends `connection_id = (select id from performance_schema.processlist where info like 'SET rapid_ml_operation%')`.
