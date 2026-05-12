@@ -79,6 +79,10 @@
       {% if existing_target %}
       <p class="helper-text">Target table <code>{{ import_form.database_name }}.{{ import_form.table_name }}</code> already exists.</p>
       {% endif %}
+
+      <div class="form-actions">
+        <button class="button primary" type="submit" name="import_action" value="load_preview">Load Preview</button>
+      </div>
     </form>
     {% endif %}
   </article>
@@ -166,7 +170,6 @@
     </form>
 
     <div class="form-actions import-preview-actions">
-      <button class="button primary" type="submit" form="import-file-form" name="import_action" value="load_preview">Load Preview</button>
       <button class="button primary" type="submit" form="import-commit-form" name="import_action" value="import_file">Import</button>
     </div>
     <div class="table-wrap">
