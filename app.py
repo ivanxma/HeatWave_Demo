@@ -115,7 +115,7 @@ NAV_GROUPS = [
             {"endpoint": "db_admin_page", "label": "DB Admin"},
             {"endpoint": "import_page", "label": "Import"},
             {"endpoint": "setup_configdb_page", "label": "Setup configdb"},
-            {"endpoint": "setup_askme_page", "label": "Setup ObjectStorage"},
+            {"endpoint": "oci_configuration_page", "label": "OCI Configuration"},
             {"endpoint": "update_heatwave_demo", "label": "Update HeatWave_Demo"},
         ],
     },
@@ -3160,7 +3160,7 @@ def build_nav_groups():
             item_payload = dict(item)
             if item["endpoint"] in {"askme_genai_page", "heatwave_lh_external_page"} and not object_storage_ready:
                 item_payload["disabled"] = True
-                item_payload["disabled_reason"] = "Configure Admin > Setup ObjectStorage first."
+                item_payload["disabled_reason"] = "Configure Admin > OCI Configuration first."
             items.append(item_payload)
         if group["label"] == "HeatWave" and show_performance:
             items.append(
@@ -3782,7 +3782,7 @@ import pages.heatwave_ml  # noqa: F401
 import pages.home  # noqa: F401
 import pages.import_page  # noqa: F401
 import pages.nlsql  # noqa: F401
-import pages.setup_askme  # noqa: F401
+import pages.oci_configuration  # noqa: F401
 import pages.setup_configdb  # noqa: F401
 import pages.vision  # noqa: F401
 

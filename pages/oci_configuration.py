@@ -375,8 +375,9 @@ def _list_preauthenticated_requests(config_values):
 
 
 @app.route("/setup-askme", methods=["GET", "POST"])
+@app.route("/oci-configuration", methods=["GET", "POST"])
 @login_required
-def setup_askme_page():
+def oci_configuration_page():
     config_values = {}
     last_par_url = ""
     active_tab = _normalize_setup_tab(request.args.get("tab"))
@@ -396,16 +397,16 @@ def setup_askme_page():
                     for env_var, _default_value in ASKME_CONFIG_ROWS
                 }
                 save_askme_config(submitted)
-                flash("Updated object storage settings in askme.config.", "success")
-                return redirect(url_for("setup_askme_page", tab="bucket"))
+                flash("Updated OCI configuration settings in askme.config.", "success")
+                return redirect(url_for("oci_configuration_page", tab="bucket"))
             if action == "use_existing_oci_config":
                 _save_existing_oci_config_reference(config_values, request.form)
                 flash("Updated the OCI config file reference.", "success")
-                return redirect(url_for("setup_askme_page", tab="oci-config"))
+                return redirect(url_for("oci_configuration_page", tab="oci-config"))
             if action == "store_local_oci_config":
                 _store_local_oci_config(config_values, request.form, request.files.get("private_key_file"))
                 flash("Stored OCI config and private key in the local git-ignored oci_config folder.", "success")
-                return redirect(url_for("setup_askme_page", tab="oci-config"))
+                return redirect(url_for("oci_configuration_page", tab="oci-config"))
             if action == "test_oci_config":
                 namespace = _test_oci_config(config_values)
                 flash("OCI authentication succeeded. Namespace: {}".format(namespace or "-"), "success")
@@ -435,7 +436,7 @@ def setup_askme_page():
                     request.form.get("upload_folder_name"),
                 )
                 flash("Uploaded object: {}".format(object_name), "success")
-                return redirect(url_for("setup_askme_page", tab="upload"))
+                return redirect(url_for("oci_configuration_page", tab="upload"))
             if action == "create_par":
                 selected_par_folder = _normalize_text(request.form.get("par_folder_name")).strip("/")
                 last_par_url = _create_preauthenticated_request(config_values, request.form)
@@ -444,7 +445,7 @@ def setup_askme_page():
             if action == "delete_par":
                 _delete_preauthenticated_request(config_values, request.form.get("par_id"))
                 flash("Deleted pre-authenticated request.", "success")
-                return redirect(url_for("setup_askme_page", tab="preauth"))
+                return redirect(url_for("oci_configuration_page", tab="preauth"))
     except (mysql.connector.Error, RuntimeError, ValueError) as error:
         flash(str(error), "error")
 
@@ -462,8 +463,8 @@ def setup_askme_page():
     par_rows, par_error = _list_preauthenticated_requests(config_values)
 
     return render_dashboard(
-        "setup_askme.html",
-        page_title="Setup ObjectStorage",
+        "oci_configuration.html",
+        page_title="OCI Configuration",
         setup_tabs=SETUP_TABS,
         active_tab=active_tab,
         config_values=config_values,

@@ -9,7 +9,7 @@
 
 {% if not config_status.is_ready %}
 <section class="flash warning">
-  Configure <code>{{ config_status.missing_keys|join(", ") }}</code> in <a href="{{ url_for('setup_askme_page') }}">Admin &gt; Setup ObjectStorage</a> before using Askme GenAI.
+  Configure <code>{{ config_status.missing_keys|join(", ") }}</code> in <a href="{{ url_for('oci_configuration_page') }}">Admin &gt; OCI Configuration</a> before using Askme GenAI.
 </section>
 {% endif %}
 

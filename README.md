@@ -281,7 +281,7 @@ If you use different OCI names, replace `hw-genai-dg` and `hw-demo-compartment` 
 2. Create or select a saved connection profile on the login page.
 3. Log in with the database user and password for that profile.
 4. Open `Admin > Setup configdb` and choose the schemas NL_SQL should use.
-5. Open `Admin > Setup ObjectStorage` to create database `askme`, initialize table `askme.config`, configure OCI authentication, and save bucket settings for AskME object-storage usage.
+5. Open `Admin > OCI Configuration` to create database `askme`, initialize table `askme.config`, configure OCI authentication, and save bucket settings for AskME object-storage usage.
 6. Use `HeatWave > NL_SQL`, `HeatWave > HWVision`, `HeatWave > GenAI`, `HeatWave > Askme GenAI`, `HeatWave > HeatWave ML`, or `HeatWave > HeatWave Performance`.
 
 If MySQL is restarted and the active session is no longer valid, the next authenticated page load clears that dead session and routes back to the login page.
@@ -334,7 +334,7 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 
 ### Askme GenAI
 
-- `Admin > Setup ObjectStorage` creates database `askme` if needed and creates table `askme.config (my_row_id, env_var, env_value, primary key(my_row_id))`.
+- `Admin > OCI Configuration` creates database `askme` if needed and creates table `askme.config (my_row_id, env_var, env_value, primary key(my_row_id))`.
 - The setup page uses a TabView with `OCI Config`, `Bucket Settings`, `Bucket Upload`, and `Pre-Authenticated URLs`.
 - The `OCI Config` tab lets you choose whether to reference an existing config file such as `~/.oci/config` or store a local config and uploaded private key under the git-ignored `oci_config/` folder.
 - The setup page stores OCI and bucket settings in `askme.config`: `OCI_REGION`, `OCI_CONFIG_FILE`, `OCI_CONFIG_PROFILE`, `OCI_BUCKET_NAME`, `OCI_NAMESPACE`, and `OCI_BUCKET_FOLDER`.

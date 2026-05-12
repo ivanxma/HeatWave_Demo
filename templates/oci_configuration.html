@@ -3,11 +3,11 @@
 {% block content %}
 <section class="page-header">
   <p class="eyebrow">Admin</p>
-  <h2>Setup ObjectStorage</h2>
+  <h2>OCI Configuration</h2>
 </section>
 
 <div class="tab-shell">
-  <div class="tab-strip" role="tablist" aria-label="Object Storage setup tabs">
+  <div class="tab-strip" role="tablist" aria-label="OCI configuration tabs">
     {% for tab in setup_tabs %}
     <button
       class="tab-link {% if tab.id == active_tab %}active{% endif %}"

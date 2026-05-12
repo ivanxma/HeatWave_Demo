@@ -29,7 +29,7 @@
     <p class="helper-text">Target table must not already exist in the selected database.</p>
     {% if object_storage_setup_ready %}
     <p class="helper-text">
-      Setup ObjectStorage:
+      OCI Configuration:
       <code>{{ object_storage_setup.bucket_name or "-" }}</code> /
       <code>{{ object_storage_setup.namespace_name or "-" }}</code> /
       <code>{{ object_storage_setup.base_folder or "-" }}</code>
@@ -37,7 +37,7 @@
     {% elif object_storage_error %}
     <p class="helper-text">{{ object_storage_error }}</p>
     {% else %}
-    <p class="helper-text">Configure <code>Admin &gt; Setup ObjectStorage</code> to default the OCI URL from the configured bucket, namespace, and folder.</p>
+    <p class="helper-text">Configure <code>Admin &gt; OCI Configuration</code> to default the OCI URL from the configured bucket, namespace, and folder.</p>
     {% endif %}
     {% if not database_names %}
     <p class="helper-text">No non-system databases are available for HeatWave load targets.</p>
@@ -89,7 +89,7 @@
           data-result-panel="heatwave-lh-oci-url"
         >
           <h4>OCI URL</h4>
-          <p class="helper-text">Bucket, namespace, region, and base folder are configured in <code>Admin &gt; Setup ObjectStorage</code>.</p>
+          <p class="helper-text">Bucket, namespace, region, and base folder are configured in <code>Admin &gt; OCI Configuration</code>.</p>
           <div class="field-grid">
             <div class="field-row field-row-two">
               <label>
@@ -163,7 +163,7 @@
         >
           <h4>Object Storage Upload</h4>
           <p class="helper-text">Upload a file into an existing folder or enter a new folder name. Uploading a file fills the OCI URL with the uploaded object path.</p>
-          <p class="helper-text">Bucket, namespace, region, and base folder are configured in <code>Admin &gt; Setup ObjectStorage</code>.</p>
+          <p class="helper-text">Bucket, namespace, region, and base folder are configured in <code>Admin &gt; OCI Configuration</code>.</p>
           <div class="field-grid">
             <div class="field-row field-row-two">
               <label>

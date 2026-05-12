@@ -200,7 +200,7 @@ def _list_object_storage_folders(config_values):
                 break
     except Exception as error:
         raise RuntimeError(
-            "Listing object-storage folders failed. Verify the Setup ObjectStorage values and OCI access."
+            "Listing object-storage folders failed. Verify the OCI Configuration values and OCI access."
         ) from error
 
     folder_names = set()
@@ -276,7 +276,7 @@ def _upload_object_storage_file(file_storage, config_values, folder_name):
         )
     except Exception as error:
         raise RuntimeError(
-            "Uploading the file to OCI Object Storage failed. Verify the Setup ObjectStorage values and OCI access."
+            "Uploading the file to OCI Object Storage failed. Verify the OCI Configuration values and OCI access."
         ) from error
     return object_name, _build_object_storage_base_uri(config_values, "") + object_name
 
@@ -587,14 +587,14 @@ def heatwave_lh_external_page():
                     if object_storage_error:
                         pass
                     elif not _object_storage_setup_is_ready(object_storage_setup):
-                        flash("Configure Admin > Setup ObjectStorage before loading bucket folders.", "warning")
+                        flash("Configure Admin > OCI Configuration before loading bucket folders.", "warning")
                     elif object_folder_options:
                         flash("Loaded object storage folders.", "info")
                     else:
                         flash("No object folders were found in the configured bucket path.", "info")
                 elif action == "upload_file":
                     if not _object_storage_setup_is_ready(object_storage_setup):
-                        flash("Configure Admin > Setup ObjectStorage before uploading files.", "warning")
+                        flash("Configure Admin > OCI Configuration before uploading files.", "warning")
                     else:
                         target_folder = _get_target_object_folder(form_state, object_storage_setup, for_upload=True)
                         uploaded_file = request.files.get("object_file")
