@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from functools import wraps
 from pathlib import Path
 
@@ -33,6 +34,8 @@ APP_SLUG = "heatwave-demo"
 UPDATE_STATUS_FILE = Path(os.environ.get("HEATWAVE_DEMO_UPDATE_STATUS", f"/tmp/{APP_SLUG}-update-status.json"))
 UPDATE_LOG_FILE = Path(os.environ.get("HEATWAVE_DEMO_UPDATE_LOG", f"/tmp/{APP_SLUG}-update.log"))
 UPDATE_WORKER_FILE = ROOT_DIR / "heatwave_demo_update_worker.py"
+VERSION_FILE = ROOT_DIR / "heatwave_demo_ver.json"
+VERSION_CHECK_TIMEOUT_SECONDS = 5
 IMPORT_PREVIEW_DIR = Path("/tmp/hw_nlsql_imports")
 DEFAULT_PROFILE = {
     "name": "",
@@ -3294,11 +3297,107 @@ def answer_query_on_image(question, model_id, image_base64):
     return rows[0][0] if rows else ""
 
 
+def read_app_version():
+    try:
+        payload = json.loads(VERSION_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "unknown"
+    if not isinstance(payload, dict):
+        return "unknown"
+    version = str(payload.get("version", "")).strip()
+    return version or "unknown"
+
+
+def _version_compare_key(value):
+    parts = re.findall(r"\d+|[A-Za-z]+", str(value or ""))
+    key = []
+    for part in parts:
+        if part.isdigit():
+            key.append((1, int(part)))
+        else:
+            key.append((0, part.lower()))
+    return key
+
+
+def is_newer_version(candidate, current):
+    if not candidate or not current or current == "unknown":
+        return False
+    return _version_compare_key(candidate) > _version_compare_key(current)
+
+
+def _default_repo_version_url():
+    configured_url = os.environ.get("HEATWAVE_DEMO_VERSION_URL", "").strip()
+    if configured_url:
+        return configured_url
+    try:
+        remote_url = subprocess.check_output(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=str(ROOT_DIR),
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        remote_url = "https://github.com/ivanxma/HeatWave_Demo.git"
+    try:
+        branch_name = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(ROOT_DIR),
+            text=True,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        branch_name = "main"
+    if not branch_name or branch_name == "HEAD":
+        branch_name = "main"
+    match = re.match(r"git@github\.com:([^/]+)/(.+?)(?:\.git)?$", remote_url)
+    if match:
+        owner, repo = match.groups()
+        return f"https://raw.githubusercontent.com/{owner}/{repo}/{branch_name}/{VERSION_FILE.name}"
+    match = re.match(r"https://github\.com/([^/]+)/(.+?)(?:\.git)?$", remote_url)
+    if match:
+        owner, repo = match.groups()
+        return f"https://raw.githubusercontent.com/{owner}/{repo}/{branch_name}/{VERSION_FILE.name}"
+    return ""
+
+
+def check_repo_version():
+    current_version = read_app_version()
+    result = {
+        "current_version": current_version,
+        "repo_version": "",
+        "update_available": False,
+        "error": "",
+    }
+    repo_url = _default_repo_version_url()
+    if not repo_url:
+        result["error"] = "Repository version URL is not configured."
+        return result
+    try:
+        request_obj = urllib.request.Request(repo_url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(request_obj, timeout=VERSION_CHECK_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as error:
+        result["error"] = f"Unable to check repository version: {error}"
+        return result
+    if isinstance(payload, dict):
+        repo_version = str(payload.get("version", "")).strip()
+    else:
+        repo_version = ""
+    result["repo_version"] = repo_version
+    result["update_available"] = is_newer_version(repo_version, current_version)
+    return result
+
+
 def render_dashboard(template_name, **context):
     connection_timeout_settings = fetch_connection_timeout_settings()
+    app_version_status = session.get("version_check") if isinstance(session.get("version_check"), dict) else {}
     return render_template(
         template_name,
         app_title=APP_TITLE,
+        app_version=read_app_version(),
+        app_version_status=app_version_status,
         nav_groups=build_nav_groups(),
         current_user=session.get("db_user", ""),
         current_profile_name=session.get("profile_name", ""),
@@ -3435,6 +3534,7 @@ def update_heatwave_demo():
         "update_heatwave_demo.html",
         page_title="Update HeatWave_Demo",
         update_status=_read_update_status(),
+        version_status=session.get("version_check") if isinstance(session.get("version_check"), dict) else {},
         status_url=url_for("update_heatwave_demo_status"),
         start_button_label="Update HeatWave_Demo",
     )

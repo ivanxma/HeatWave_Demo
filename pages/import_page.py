@@ -52,17 +52,16 @@ def import_page():
 
     if selected_database not in database_names:
         selected_database = ""
+        import_form["database_name"] = ""
 
     if request.method == "POST":
         action = str(request.form.get("import_action", "load_preview")).strip()
         new_schema = request.form.get("new_schema") == "on"
-        selected_database_name = str(request.form.get("database_name", "")).strip()
-        new_database_name = str(request.form.get("new_database_name", "")).strip()
-        database_name = new_database_name if new_schema else selected_database_name
+        database_name = str(request.form.get("database_name", "")).strip()
         import_form = {
             "database_name": database_name,
             "new_schema": new_schema,
-            "new_database_name": new_database_name,
+            "new_database_name": database_name if new_schema else "",
             "table_name": str(request.form.get("table_name", "")).strip(),
             "overwrite_existing": request.form.get("overwrite_existing") == "on",
             "create_new_table": request.form.get("create_new_table") == "on",
@@ -88,7 +87,7 @@ def import_page():
                 if not target_table_name:
                     raise ValueError("Enter the target table name before importing.")
                 if not import_form["new_schema"] and not _database_exists(selected_database):
-                    raise ValueError("Choose an existing database, or check New Schema and enter a schema name.")
+                    raise ValueError("Choose an existing database, or check New Schema to enter a new database name.")
                 if _is_system_database(selected_database):
                     raise ValueError("System databases cannot be modified.")
                 if import_form["preview_token"]:

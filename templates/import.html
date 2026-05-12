@@ -16,14 +16,31 @@
       <div class="import-target-grid">
         <label>
           Database
-          <select name="database_name" id="import-database-select" {% if import_form.new_schema %}disabled{% endif %}>
-            <option value="">Choose a database</option>
+          <input
+            name="database_name"
+            id="import-database-input"
+            type="text"
+            value="{{ import_form.database_name }}"
+            list="import-database-options"
+            placeholder="schema_name"
+            {% if not import_form.new_schema %}readonly{% endif %}
+          >
+          <datalist id="import-database-options">
             {% for database in import_tree %}
-            <option value="{{ database.database_name }}" {% if database.database_name == import_form.database_name and not import_form.new_schema %}selected{% endif %}>
-              {{ database.database_name }}{% if database.is_system %} (system){% endif %}
-            </option>
+            <option value="{{ database.database_name }}">{{ database.database_name }}{% if database.is_system %} (system){% endif %}</option>
             {% endfor %}
-          </select>
+          </datalist>
+        </label>
+
+        <label>
+          Import Table Name
+          <input
+            name="table_name"
+            id="import-target-table-name"
+            type="text"
+            value="{{ import_form.table_name }}"
+            placeholder="target_table"
+          >
         </label>
 
         <label class="checkbox-row import-new-schema-toggle">
@@ -31,29 +48,6 @@
           <span>New Schema</span>
         </label>
       </div>
-
-      <label id="import-new-schema-field" {% if not import_form.new_schema %}hidden{% endif %}>
-        New Schema Name
-        <input
-          name="new_database_name"
-          id="import-new-schema-name"
-          type="text"
-          value="{{ import_form.new_database_name if import_form.new_schema else '' }}"
-          placeholder="new_schema"
-          {% if not import_form.new_schema %}disabled{% endif %}
-        >
-      </label>
-
-      <label>
-        Import Table Name
-        <input
-          name="table_name"
-          id="import-target-table-name"
-          type="text"
-          value="{{ import_form.table_name }}"
-          placeholder="target_table"
-        >
-      </label>
 
       <label>
         Choose File
@@ -242,10 +236,8 @@
 <script>
   (() => {
     const importForm = document.getElementById("import-file-form");
-    const databaseSelect = document.getElementById("import-database-select");
+    const databaseInput = document.getElementById("import-database-input");
     const newSchemaCheckbox = document.getElementById("import-new-schema-checkbox");
-    const newSchemaField = document.getElementById("import-new-schema-field");
-    const newSchemaInput = document.getElementById("import-new-schema-name");
     const fileInput = document.getElementById("import-file-input");
     const tableNameInput = document.getElementById("import-target-table-name");
     if (!importForm) {
@@ -254,14 +246,9 @@
 
     function syncSchemaMode() {
       const isNewSchema = Boolean(newSchemaCheckbox && newSchemaCheckbox.checked);
-      if (databaseSelect) {
-        databaseSelect.disabled = isNewSchema;
-      }
-      if (newSchemaField) {
-        newSchemaField.hidden = !isNewSchema;
-      }
-      if (newSchemaInput) {
-        newSchemaInput.disabled = !isNewSchema;
+      if (databaseInput) {
+        databaseInput.readOnly = !isNewSchema;
+        databaseInput.placeholder = isNewSchema ? "new_schema" : "Choose a database";
       }
     }
 

@@ -4,6 +4,7 @@ from app_context import (
     APP_TITLE,
     DEFAULT_PROFILE,
     app,
+    check_repo_version,
     clear_login_state,
     get_profile_by_name,
     get_selected_profile_name,
@@ -42,6 +43,17 @@ def login():
                 session["db_user"] = username
                 session["db_password"] = password
                 session["logged_in"] = True
+                version_status = check_repo_version()
+                session["version_check"] = version_status
+                if version_status.get("update_available"):
+                    flash(
+                        "Version {repo_version} is available. Current version is {current_version}.".format(
+                            repo_version=version_status.get("repo_version") or "-",
+                            current_version=version_status.get("current_version") or "-",
+                        ),
+                        "info",
+                    )
+                    return redirect(url_for("update_heatwave_demo"))
                 flash("Login successful.", "success")
                 return redirect(url_for("home"))
             clear_login_state()

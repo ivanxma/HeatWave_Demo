@@ -125,6 +125,15 @@ button {
   white-space: normal;
 }
 
+.topbar-version-block {
+  text-align: right;
+}
+
+.version-update-available {
+  color: var(--accent-dark);
+  white-space: nowrap;
+}
+
 .timeout-current-values {
   padding: 16px 18px;
   border: 1px solid var(--line);
@@ -1137,7 +1146,7 @@ textarea {
 
 .import-target-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(160px, max-content);
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(150px, max-content);
   gap: 14px;
   align-items: end;
 }

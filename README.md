@@ -154,6 +154,8 @@ sudo journalctl -u heatwave-demo-https.service -f
 
 After login, use `Admin > Update HeatWave_Demo` to refresh the app from its configured git repository. The updater requires a clean worktree, runs `git fetch --all --prune`, runs `git pull --ff-only`, reruns `setup.sh`, and restarts active `heatwave-demo-http.service` or `heatwave-demo-https.service` services when systemd is present.
 
+The local app version is stored in `heatwave_demo_ver.json` and shown in the top banner after login. Each login checks the repository copy of that same file. If the repository version is newer, the app redirects to `Admin > Update HeatWave_Demo` and shows the available version before the update is started. Set `HEATWAVE_DEMO_VERSION_URL` when the version file should be checked from a custom repository or branch URL.
+
 For a full service refresh from the web UI, the service user needs passwordless `sudo` for setup and service restart operations. If passwordless `sudo` is unavailable, the updater falls back to `SKIP_PRIVILEGED_SETUP=1`, refreshes the repo and Python environment, and lets systemd recover the service by restarting the current process. Run `./setup.sh` manually later if privileged package, firewall, TLS ownership, or service-unit changes were skipped.
 
 The updater uses the saved `OS_FAMILY` from `.runtime.env` when rerunning `setup.sh`. Set `HEATWAVE_DEMO_OS_FAMILY=ol9`, `ol8`, `ubuntu`, or `macos` only when you need an explicit override; otherwise rerun `./setup.sh <os-family> <deploy-mode>` once on the target host so `.runtime.env` reflects that platform.
@@ -396,7 +398,7 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 ### Admin Import
 
 - `Admin > Import` uploads a CSV file, stores it temporarily for preview, and shows detected column names before inserting data.
-- The database selector can target an existing schema or switch to `New Schema` mode, which enables an editable schema-name field and creates that schema during import.
+- The database field offers existing schemas as dropdown suggestions and switches to editable `New Schema` mode to create a schema during import.
 - If the table name is left blank, loading the preview defaults it from the CSV filename without the `.csv` suffix.
 - The preview displays inferred MySQL column definitions based on the CSV header row and sample values.
 - When the target table does not already exist, the import can create it from the inferred definition.
