@@ -1503,9 +1503,12 @@ def _delete_import_preview_file(token):
 
 
 def _build_import_preview_table(import_payload, max_rows=50):
+    headers = list(import_payload.get("headers") or [])
+    rows = list(import_payload.get("rows") or [])
     return {
-        "columns": list(import_payload.get("headers") or []),
-        "rows": [list(row) for row in list(import_payload.get("rows") or [])[:max_rows]],
+        "columns": headers,
+        "column_definitions": _build_import_table_columns(headers, rows) if headers else [],
+        "rows": [list(row) for row in rows[:max_rows]],
         "row_count": int(import_payload.get("row_count") or 0),
         "preview_count": min(int(import_payload.get("row_count") or 0), max_rows),
         "filename": str(import_payload.get("filename") or ""),
@@ -1539,6 +1542,58 @@ def _build_import_table_columns(headers, rows):
     return columns
 
 
+def _normalize_import_primary_key_mode(value, *, add_invisible_primary_key=False):
+    normalized = str(value or "").strip().lower()
+    if not normalized:
+        normalized = "my_row_id" if add_invisible_primary_key else "none"
+    if normalized not in {"none", "columns", "my_row_id"}:
+        raise ValueError("Choose a valid primary key option.")
+    return normalized
+
+
+def _apply_import_primary_key_definition(columns, headers, rows, primary_key_mode, primary_key_columns):
+    normalized_mode = _normalize_import_primary_key_mode(primary_key_mode)
+    if normalized_mode == "none":
+        return False
+    if normalized_mode == "my_row_id":
+        if any(str(column.get("name", "")).strip().lower() == "my_row_id" for column in columns):
+            raise ValueError("Column name `my_row_id` is reserved for the generated invisible primary key.")
+        return True
+
+    selected_columns = [str(column or "").strip() for column in primary_key_columns or [] if str(column or "").strip()]
+    if not selected_columns:
+        raise ValueError("Select at least one import column for the primary key, or choose `my_row_id`.")
+
+    header_lookup = {header.lower(): header for header in headers}
+    normalized_selected_columns = []
+    seen_selected = set()
+    for selected_column in selected_columns:
+        normalized_selected = header_lookup.get(selected_column.lower())
+        if not normalized_selected:
+            raise ValueError(f"Primary key column `{selected_column}` was not found in the import file.")
+        if normalized_selected.lower() in seen_selected:
+            continue
+        seen_selected.add(normalized_selected.lower())
+        normalized_selected_columns.append(normalized_selected)
+
+    selected_indexes = [headers.index(column_name) for column_name in normalized_selected_columns]
+    seen_values = set()
+    for row_number, row in enumerate(rows, start=2):
+        key_values = tuple(row[index] for index in selected_indexes)
+        if any(value in (None, "") for value in key_values):
+            raise ValueError(f"Primary key columns cannot contain empty values. Check CSV row {row_number}.")
+        if key_values in seen_values:
+            raise ValueError(f"Primary key columns must be unique. Duplicate key found at CSV row {row_number}.")
+        seen_values.add(key_values)
+
+    selected_lookup = {column_name.lower() for column_name in normalized_selected_columns}
+    for column in columns:
+        if str(column.get("name", "")).lower() in selected_lookup:
+            column["primary"] = True
+            column["nullable"] = False
+    return False
+
+
 def import_file_to_table(
     schema_name,
     table_name,
@@ -1547,6 +1602,8 @@ def import_file_to_table(
     overwrite_existing=False,
     create_new_table=False,
     add_invisible_primary_key=False,
+    primary_key_mode=None,
+    primary_key_columns=None,
 ):
     database_name = _validate_identifier(schema_name, "Database name")
     normalized_table_name = _validate_identifier(table_name, "Table name")
@@ -1565,11 +1622,20 @@ def import_file_to_table(
 
     if not table_exists:
         import_columns = _build_import_table_columns(headers, rows)
+        if primary_key_mode is None:
+            primary_key_mode = "my_row_id" if add_invisible_primary_key else "none"
+        add_generated_primary_key = _apply_import_primary_key_definition(
+            import_columns,
+            headers,
+            rows,
+            primary_key_mode,
+            primary_key_columns,
+        )
         create_table(
             database_name,
             normalized_table_name,
             import_columns,
-            add_invisible_auto_pk=add_invisible_primary_key,
+            add_invisible_auto_pk=add_generated_primary_key,
         )
     else:
         existing_columns = {row["column_name"].lower(): row["column_name"] for row in fetch_table_definition(database_name, normalized_table_name)}
@@ -1783,6 +1849,8 @@ def _default_import_form():
         "overwrite_existing": False,
         "create_new_table": False,
         "add_invisible_primary_key": False,
+        "primary_key_mode": "my_row_id",
+        "primary_key_columns": [],
         "preview_token": "",
     }
 

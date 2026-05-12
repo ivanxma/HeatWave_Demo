@@ -1135,6 +1135,43 @@ textarea {
   margin-bottom: 14px;
 }
 
+.import-definition-panel {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.import-definition-panel h4 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  color: var(--accent-dark);
+}
+
+.radio-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-strong);
+}
+
+.import-primary-key-options {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.import-column-definition-table th:first-child,
+.import-column-definition-table td:first-child {
+  width: 8rem;
+  text-align: center;
+}
+
 .import-preview-table {
   table-layout: fixed;
 }

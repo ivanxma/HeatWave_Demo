@@ -4,7 +4,7 @@
 <section class="page-header">
   <p class="eyebrow">Admin</p>
   <h2>Import</h2>
-  <p>Load a CSV or Excel file, preview the rows, and import the data into the selected schema and table.</p>
+  <p>Load a CSV file, preview the rows, and import the data into the selected schema and table.</p>
 </section>
 
 <section class="panel-stack">
@@ -63,7 +63,7 @@
 
       <label>
         Choose File
-        <input name="import_file" type="file" accept=".csv,.xlsx,.xlsm,.xltx,.xltm">
+        <input name="import_file" type="file" accept=".csv">
       </label>
 
       <label class="checkbox-row">
@@ -74,11 +74,6 @@
       <label class="checkbox-row">
         <input name="create_new_table" type="checkbox" {% if import_form.create_new_table %}checked{% endif %}>
         <span>Create a new table from the import file when the target table does not exist</span>
-      </label>
-
-      <label class="checkbox-row">
-        <input name="add_invisible_primary_key" type="checkbox" {% if import_form.add_invisible_primary_key %}checked{% endif %}>
-        <span>Create invisible column <code>my_row_id</code> as the primary key when creating a new table</span>
       </label>
 
       {% if existing_target %}
@@ -94,29 +89,85 @@
     <p class="helper-text">
       Showing {{ import_preview.preview_count }} of {{ import_preview.row_count }} rows from <code>{{ import_preview.filename }}</code>.
     </p>
+    <form
+      method="post"
+      id="import-commit-form"
+      {% if existing_target and not import_form.create_new_table %}
+      onsubmit="return confirm('Import into existing table {{ import_form.database_name }}.{{ import_form.table_name }}?');"
+      {% endif %}
+    >
+      <input type="hidden" name="database_name" value="{{ import_form.database_name }}">
+      <input type="hidden" name="table" value="{{ selected_table }}">
+      <input type="hidden" name="table_name" value="{{ import_form.table_name }}">
+      <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
+      {% if import_form.overwrite_existing %}
+      <input type="hidden" name="overwrite_existing" value="on">
+      {% endif %}
+      {% if import_form.create_new_table %}
+      <input type="hidden" name="create_new_table" value="on">
+      {% endif %}
+
+      <div class="import-definition-panel">
+        <div>
+          <h4>Column Definition</h4>
+          <p class="helper-text">These columns are inferred from the CSV header row and sample values.</p>
+        </div>
+
+        <div class="radio-stack import-primary-key-options" role="radiogroup" aria-label="Primary key option">
+          <label class="radio-row">
+            <input name="primary_key_mode" type="radio" value="my_row_id" {% if import_form.primary_key_mode == "my_row_id" %}checked{% endif %}>
+            <span>Use generated invisible <code>my_row_id</code> primary key</span>
+          </label>
+          <label class="radio-row">
+            <input name="primary_key_mode" type="radio" value="columns" {% if import_form.primary_key_mode == "columns" %}checked{% endif %}>
+            <span>Use selected CSV column{% if import_preview.columns|length != 1 %}s{% endif %} as primary key</span>
+          </label>
+          <label class="radio-row">
+            <input name="primary_key_mode" type="radio" value="none" {% if import_form.primary_key_mode == "none" %}checked{% endif %}>
+            <span>No primary key</span>
+          </label>
+        </div>
+
+        {% if existing_target and not import_form.create_new_table %}
+        <p class="helper-text">Primary key choices apply only when the import creates a new table.</p>
+        {% endif %}
+
+        <div class="table-wrap">
+          <table class="admin-table import-column-definition-table">
+            <thead>
+              <tr>
+                <th>Primary Key</th>
+                <th>Column</th>
+                <th>Inferred Type</th>
+                <th>Nullable</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for column in import_preview.column_definitions %}
+              <tr>
+                <td>
+                  <input
+                    class="import-primary-key-column"
+                    name="primary_key_columns"
+                    type="checkbox"
+                    value="{{ column.name }}"
+                    {% if column.name in import_form.primary_key_columns %}checked{% endif %}
+                  >
+                </td>
+                <td><code>{{ column.name }}</code></td>
+                <td>{{ column.data_type }}</td>
+                <td>{{ "Yes" if column.nullable else "No" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </form>
+
     <div class="form-actions import-preview-actions">
       <button class="button primary" type="submit" form="import-file-form" name="import_action" value="load_preview">Load Preview</button>
-      <form
-        method="post"
-        {% if existing_target and not import_form.create_new_table %}
-        onsubmit="return confirm('Import into existing table {{ import_form.database_name }}.{{ import_form.table_name }}?');"
-        {% endif %}
-      >
-        <input type="hidden" name="database_name" value="{{ import_form.database_name }}">
-        <input type="hidden" name="table" value="{{ selected_table }}">
-        <input type="hidden" name="table_name" value="{{ import_form.table_name }}">
-        <input type="hidden" name="preview_token" value="{{ import_form.preview_token }}">
-        {% if import_form.overwrite_existing %}
-        <input type="hidden" name="overwrite_existing" value="on">
-        {% endif %}
-        {% if import_form.create_new_table %}
-        <input type="hidden" name="create_new_table" value="on">
-        {% endif %}
-        {% if import_form.add_invisible_primary_key %}
-        <input type="hidden" name="add_invisible_primary_key" value="on">
-        {% endif %}
-        <button class="button primary" type="submit" name="import_action" value="import_file">Import</button>
-      </form>
+      <button class="button primary" type="submit" form="import-commit-form" name="import_action" value="import_file">Import</button>
     </div>
     <div class="table-wrap">
       <table class="admin-table import-preview-table">
@@ -192,6 +243,37 @@
     if (targetTableInput) {
       targetTableInput.dataset.selectedTable = targetTableInput.dataset.selectedTable || "";
     }
+  })();
+
+  (() => {
+    const primaryKeyModeInputs = Array.from(document.querySelectorAll('input[name="primary_key_mode"]'));
+    const primaryKeyColumnInputs = Array.from(document.querySelectorAll(".import-primary-key-column"));
+    if (!primaryKeyModeInputs.length || !primaryKeyColumnInputs.length) {
+      return;
+    }
+
+    function syncPrimaryKeyColumns() {
+      const selectedMode = primaryKeyModeInputs.find((input) => input.checked)?.value || "my_row_id";
+      primaryKeyColumnInputs.forEach((input) => {
+        input.disabled = selectedMode !== "columns";
+      });
+    }
+
+    primaryKeyModeInputs.forEach((input) => {
+      input.addEventListener("change", syncPrimaryKeyColumns);
+    });
+    primaryKeyColumnInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        if (input.checked) {
+          const columnMode = primaryKeyModeInputs.find((modeInput) => modeInput.value === "columns");
+          if (columnMode) {
+            columnMode.checked = true;
+            syncPrimaryKeyColumns();
+          }
+        }
+      });
+    });
+    syncPrimaryKeyColumns();
   })();
 
   (() => {

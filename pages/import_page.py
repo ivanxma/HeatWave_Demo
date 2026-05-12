@@ -72,8 +72,11 @@ def import_page():
             "overwrite_existing": request.form.get("overwrite_existing") == "on",
             "create_new_table": request.form.get("create_new_table") == "on",
             "add_invisible_primary_key": request.form.get("add_invisible_primary_key") == "on",
+            "primary_key_mode": str(request.form.get("primary_key_mode", "my_row_id")).strip() or "my_row_id",
+            "primary_key_columns": request.form.getlist("primary_key_columns"),
             "preview_token": str(request.form.get("preview_token", "")).strip(),
         }
+        import_form["add_invisible_primary_key"] = import_form["primary_key_mode"] == "my_row_id"
         selected_database = import_form["database_name"]
         target_table_name = import_form["table_name"]
         if selected_table and not target_table_name:
@@ -87,7 +90,7 @@ def import_page():
             if action == "load_preview":
                 file_storage = request.files.get("import_file")
                 if not file_storage or not str(file_storage.filename or "").strip():
-                    raise ValueError("Choose a CSV or Excel file to load.")
+                    raise ValueError("Choose a CSV file to load.")
                 if import_form["preview_token"]:
                     _delete_import_preview_file(import_form["preview_token"])
                 preview_token, _ = _save_import_preview_file(file_storage)
@@ -109,7 +112,8 @@ def import_page():
                     import_payload,
                     overwrite_existing=import_form["overwrite_existing"],
                     create_new_table=import_form["create_new_table"],
-                    add_invisible_primary_key=import_form["add_invisible_primary_key"],
+                    primary_key_mode=import_form["primary_key_mode"],
+                    primary_key_columns=import_form["primary_key_columns"],
                 )
                 _delete_import_preview_file(import_form["preview_token"])
                 import_form["preview_token"] = ""

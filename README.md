@@ -11,6 +11,7 @@ This application now uses Flask instead of Streamlit while preserving the same c
 - configure and run an AskME-style GenAI knowledge base backed by `askme.config`
 - run HeatWave AutoML demo actions on the Iris dataset
 - compare InnoDB and RAPID execution on `airportdb`
+- import CSV files from `Admin > Import` with preview, inferred columns, and primary-key choices
 
 ## Install
 
@@ -391,3 +392,12 @@ Profiles are stored in `profiles.json`. Only non-secret connection details are s
 - The `HeatWave ML Query` monitoring view includes a `Current ML running connection only` filter.
 - When that filter is enabled, the main query appends `connection_id = (select id from performance_schema.processlist where info like 'SET rapid_ml_operation%')`.
 - When the filter is enabled, the page also shows a second detail table for the latest current-running ML query, including the full `QEXEC_TEXT`.
+
+### Admin Import
+
+- `Admin > Import` uploads a CSV file, stores it temporarily for preview, and shows detected column names before inserting data.
+- The preview displays inferred MySQL column definitions based on the CSV header row and sample values.
+- When the target table does not already exist, the import can create it from the inferred definition.
+- Primary-key handling is selected with radio buttons: generated invisible `my_row_id`, selected CSV column or columns, or no primary key.
+- If CSV columns are selected as the primary key, the import validates that those columns exist and that imported key values are non-empty and unique before creating the table.
+- When importing into an existing table, the CSV headers must match existing table columns. Primary-key options apply only when the import creates a new table.
