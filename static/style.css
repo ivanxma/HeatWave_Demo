@@ -1146,7 +1146,7 @@ textarea {
 
 .import-target-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(150px, max-content);
+  grid-template-columns: minmax(150px, max-content) minmax(220px, 1fr) minmax(220px, 1fr);
   gap: 14px;
   align-items: end;
 }
