@@ -1805,6 +1805,19 @@ th {
   line-height: 1.6;
 }
 
+.hero-capabilities {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding-left: 20px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.hero-capabilities li::marker {
+  color: var(--accent);
+}
+
 .section-divider {
   height: 1px;
   margin: 24px 0;
